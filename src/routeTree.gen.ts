@@ -10,33 +10,83 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as BusRouteImport } from './routes/bus'
+import { Route as FerryRouteImport } from './routes/ferry'
+import { Route as MtrRouteImport } from './routes/mtr'
+import { Route as NewsRouteImport } from './routes/news'
+import { Route as WeatherRouteImport } from './routes/weather'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BusRoute = BusRouteImport.update({
+  id: '/bus',
+  path: '/bus',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FerryRoute = FerryRouteImport.update({
+  id: '/ferry',
+  path: '/ferry',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MtrRoute = MtrRouteImport.update({
+  id: '/mtr',
+  path: '/mtr',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NewsRoute = NewsRouteImport.update({
+  id: '/news',
+  path: '/news',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WeatherRoute = WeatherRouteImport.update({
+  id: '/weather',
+  path: '/weather',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/bus': typeof BusRoute
+  '/ferry': typeof FerryRoute
+  '/mtr': typeof MtrRoute
+  '/news': typeof NewsRoute
+  '/weather': typeof WeatherRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/bus': typeof BusRoute
+  '/ferry': typeof FerryRoute
+  '/mtr': typeof MtrRoute
+  '/news': typeof NewsRoute
+  '/weather': typeof WeatherRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/bus': typeof BusRoute
+  '/ferry': typeof FerryRoute
+  '/mtr': typeof MtrRoute
+  '/news': typeof NewsRoute
+  '/weather': typeof WeatherRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/bus' | '/ferry' | '/mtr' | '/news' | '/weather'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/bus' | '/ferry' | '/mtr' | '/news' | '/weather'
+  id: '__root__' | '/' | '/bus' | '/ferry' | '/mtr' | '/news' | '/weather'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  BusRoute: typeof BusRoute
+  FerryRoute: typeof FerryRoute
+  MtrRoute: typeof MtrRoute
+  NewsRoute: typeof NewsRoute
+  WeatherRoute: typeof WeatherRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +98,51 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/bus': {
+      id: '/bus'
+      path: '/bus'
+      fullPath: '/bus'
+      preLoaderRoute: typeof BusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ferry': {
+      id: '/ferry'
+      path: '/ferry'
+      fullPath: '/ferry'
+      preLoaderRoute: typeof FerryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mtr': {
+      id: '/mtr'
+      path: '/mtr'
+      fullPath: '/mtr'
+      preLoaderRoute: typeof MtrRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/news': {
+      id: '/news'
+      path: '/news'
+      fullPath: '/news'
+      preLoaderRoute: typeof NewsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/weather': {
+      id: '/weather'
+      path: '/weather'
+      fullPath: '/weather'
+      preLoaderRoute: typeof WeatherRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  BusRoute: BusRoute,
+  FerryRoute: FerryRoute,
+  MtrRoute: MtrRoute,
+  NewsRoute: NewsRoute,
+  WeatherRoute: WeatherRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
