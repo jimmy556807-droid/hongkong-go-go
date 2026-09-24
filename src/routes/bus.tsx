@@ -84,7 +84,7 @@ function BusPage() {
           <div className="mt-2 text-sm">
             <p>{trip.a?.name} → {trip.b?.name}（{trip.n} 個站）</p>
             <p className="mt-1">乘車約 <b className="text-lg text-primary">{trip.ride}</b> 分鐘{trip.wait != null && <>，下班車 {Math.round(trip.wait)} 分鐘後</>}</p>
-            {trip.arrive && <p className="text-muted-foreground">預計 {trip.arrive.toLocaleTimeString("zh-HK", { hour: "2-digit", minute: "2-digit" })} 到達</p>}
+            {trip.arrive && <p className="text-muted-foreground">預計 {trip.arrive.toLocaleTimeString("zh-HK", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Hong_Kong" })} 到達</p>}
           </div>
         )}
       </div>

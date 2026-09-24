@@ -75,7 +75,7 @@ function MtrPage() {
         {n === 0 ? <p className="mt-1 text-muted-foreground">請選擇不同的起點和終點</p> : (
           <>
             <p className="mt-1">{STATIONS[sta]} → {STATIONS[dest]}（{n} 個站）乘車約 <b className="text-lg text-primary">{ride}</b> 分鐘</p>
-            {waitMin != null && <p className="text-muted-foreground">下班車 {Math.round(waitMin)} 分鐘後，預計 {new Date(now + (waitMin + ride) * 60000).toLocaleTimeString("zh-HK", { hour: "2-digit", minute: "2-digit" })} 到達</p>}
+            {waitMin != null && <p className="text-muted-foreground">下班車 {Math.round(waitMin)} 分鐘後，預計 {new Date(now + (waitMin + ride) * 60000).toLocaleTimeString("zh-HK", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Hong_Kong" })} 到達</p>}
           </>
         )}
       </div>

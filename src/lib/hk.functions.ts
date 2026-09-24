@@ -35,7 +35,7 @@ export const getNews = createServerFn({ method: "GET" }).handler(async () => {
   const xml = await r.text();
   const pick = (s: string, tag: string) => {
     const m = s.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, "i"));
-    return m ? m[1].replace(/<!\[CDATA\[|\]\]>/g, "").trim() : "";
+    return m?.[1] ? m[1].replace(/<!\[CDATA\[|\]\]>/g, "").trim() : "";
   };
   const items = xml.split(/<message>/i).slice(1).map((s, i) => ({
     id: pick(s, "msgID") || String(i),
