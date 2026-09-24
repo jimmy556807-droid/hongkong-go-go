@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Home, Bus, TrainFront, Ship, CloudSun, TriangleAlert } from "lucide-react";
 
@@ -51,4 +52,17 @@ export function PageHeader({ title, sub }: { title: string; sub?: string }) {
 export function minsUntil(iso: string) {
   const m = Math.round((new Date(iso).getTime() - Date.now()) / 60000);
   return m <= 0 ? "即將到達" : `${m} 分鐘`;
+}
+
+export function useNow(ms = 1000) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), ms); return () => clearInterval(t); }, [ms]);
+  return now;
+}
+
+export function Countdown({ at, now }: { at: string | number; now: number }) {
+  const s = Math.floor((new Date(at).getTime() - now) / 1000);
+  if (s <= 30) return <span className="font-bold text-primary">即將到達</span>;
+  const m = Math.floor(s / 60), r = s % 60;
+  return <span className="font-bold tabular-nums">{m}:{String(r).padStart(2, "0")}</span>;
 }

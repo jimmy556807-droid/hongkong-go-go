@@ -34,7 +34,7 @@ function WeatherPage() {
           )}
           <p className="mx-5 mt-4 text-sm text-muted-foreground">{d.general}</p>
           <div className="mx-5 mt-4 divide-y rounded-2xl border bg-card">
-            {d.forecast.map((f) => (
+            {d.forecast.map((f: { date: string; week: string; desc: string; min: number; max: number }) => (
               <div key={f.date} className="flex items-center gap-3 px-4 py-3">
                 <div className="w-14 text-sm"><p className="font-semibold">{f.week}</p><p className="text-xs text-muted-foreground">{f.date.slice(4, 6)}/{f.date.slice(6)}</p></div>
                 <p className="flex-1 text-xs text-muted-foreground line-clamp-2">{f.desc}</p>

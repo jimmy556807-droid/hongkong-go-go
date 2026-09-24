@@ -67,6 +67,7 @@ export const getBus = createServerFn({ method: "GET" })
       dest: String(stops.length ? names[names.length - 1] : ""),
       stops: stops.map((s, i) => ({
         seq: Number(s.seq),
+        id: String(s.stop),
         name: names[i],
         etas: etas
           .filter((e) => Number(e.seq) === Number(s.seq) && e.eta)
@@ -83,4 +84,28 @@ export const getMtr = createServerFn({ method: "GET" })
     const s = x?.data?.[`${data.line}-${data.sta}`] ?? {};
     const map = (a: any[] = []) => a.map((t) => ({ dest: String(t.dest), plat: String(t.plat), time: String(t.time), ttnt: String(t.ttnt ?? "") }));
     return { up: map(s.UP), down: map(s.DOWN), status: Number(x?.status ?? 0), message: String(x?.message ?? ""), delay: x?.isdelay === "Y" };
+  });
+
+export const getBusRoutes = createServerFn({ method: "GET" }).handler(async () => {
+  const x = await j("https://data.etabus.gov.hk/v1/transport/kmb/route/");
+  const seen = new Set<string>();
+  return (x?.data ?? [])
+    .filter((r: any) => r.service_type === "1")
+    .map((r: any) => ({ route: String(r.route), dir: r.bound === "O" ? "outbound" : "inbound", orig: String(r.orig_tc), dest: String(r.dest_tc) }))
+    .filter((r: any) => { const k = r.route + r.dir; if (seen.has(k)) return false; seen.add(k); return true; }) as { route: string; dir: "outbound" | "inbound"; orig: string; dest: string }[];
+});
+
+export const getStopEta = createServerFn({ method: "GET" })
+  .inputValidator((d) => z.object({ stop: z.string().regex(/^[A-Z0-9]+$/) }).parse(d))
+  .handler(async ({ data }) => {
+    const x = await j(`https://data.etabus.gov.hk/v1/transport/kmb/stop-eta/${data.stop}`);
+    const m = new Map<string, { route: string; dest: string; etas: string[] }>();
+    for (const e of x?.data ?? []) {
+      if (!e.eta) continue;
+      const k = e.route + e.dir;
+      const v = m.get(k) ?? { route: String(e.route), dest: String(e.dest_tc), etas: [] };
+      if (v.etas.length < 3) v.etas.push(String(e.eta));
+      m.set(k, v);
+    }
+    return [...m.values()].sort((a, b) => a.route.localeCompare(b.route, "en", { numeric: true }));
   });
