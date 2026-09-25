@@ -92,6 +92,15 @@ function MtrPage() {
         )}
       </div>
 
+      {line.firstLast && (
+        <div className="mx-5 mt-3 rounded-2xl border bg-card p-4 text-sm">
+          <p className="font-semibold">首末班車（{line.name}，約數）</p>
+          <p className="mt-1">往{STATIONS[line.stations[line.stations.length - 1]!]}：首班 {line.firstLast.up[0]} · 尾班 {line.firstLast.up[1]}</p>
+          <p>往{STATIONS[line.stations[0]!]}：首班 {line.firstLast.down[0]} · 尾班 {line.firstLast.down[1]}</p>
+          <p className="mt-1 text-xs text-muted-foreground">各站實際時間略有不同，以港鐵公布為準</p>
+        </div>
+      )}
+
       {q.isLoading && <p className="mx-5 mt-6 text-muted-foreground">載入中…</p>}
       {q.data?.delay && <p className="mx-5 mt-4 rounded-xl bg-destructive/10 p-3 text-sm text-destructive">列車服務延誤</p>}
       {q.data && !groups.length && <p className="mx-5 mt-6 text-muted-foreground">暫無班次資料{q.data.message ? `（${q.data.message}）` : ""}</p>}

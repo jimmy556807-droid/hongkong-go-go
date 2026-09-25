@@ -46,59 +46,72 @@ export const getNews = createServerFn({ method: "GET" }).handler(async () => {
   return items.filter((i) => i.text);
 });
 
+const KMB = "https://data.etabus.gov.hk/v1/transport/kmb";
+const CTB = "https://rt.data.gov.hk/v2/transport/citybus";
+const co = z.enum(["KMB", "CTB"]).default("KMB");
+
 export const getBus = createServerFn({ method: "GET" })
-  .inputValidator((d) => z.object({ route: z.string().min(1).max(5), dir: z.enum(["outbound", "inbound"]) }).parse(d))
+  .inputValidator((d) => z.object({ route: z.string().min(1).max(5), dir: z.enum(["outbound", "inbound"]), co }).parse(d))
   .handler(async ({ data }) => {
     const route = data.route.toUpperCase();
-    const B = "https://data.etabus.gov.hk/v1/transport/kmb";
-    const [rs, eta] = await Promise.all([
-      j(`${B}/route-stop/${route}/${data.dir}/1`),
-      j(`${B}/route-eta/${route}/1`),
-    ]);
-    const stops: any[] = rs?.data ?? [];
-    if (!stops.length) return { route, stops: [] };
-    const names = await Promise.all(
-      stops.map((s) => j(`${B}/stop/${s.stop}`).then((x) => String(x?.data?.name_tc ?? s.stop)).catch(() => s.stop)),
-    );
     const d = data.dir === "outbound" ? "O" : "I";
+    if (data.co === "CTB") {
+      const rs = await j(`${CTB}/route-stop/CTB/${route}/${data.dir}`);
+      const stops: any[] = rs?.data ?? [];
+      if (!stops.length) return { route, co: "CTB", dest: "", stops: [] };
+      const rows = await Promise.all(stops.map(async (s) => {
+        const [n, e] = await Promise.all([
+          j(`${CTB}/stop/${s.stop}`).then((x) => String(x?.data?.name_tc ?? s.stop)).catch(() => String(s.stop)),
+          j(`${CTB}/eta/CTB/${s.stop}/${route}`).then((x) => (x?.data ?? []) as any[]).catch(() => [] as any[]),
+        ]);
+        return {
+          seq: Number(s.seq), id: String(s.stop), name: n,
+          etas: e.filter((x) => x.dir === d && x.eta).map((x) => String(x.eta)).slice(0, 3),
+        };
+      }));
+      return { route, co: "CTB", dest: rows[rows.length - 1]!.name, stops: rows };
+    }
+    const [rs, eta] = await Promise.all([j(`${KMB}/route-stop/${route}/${data.dir}/1`), j(`${KMB}/route-eta/${route}/1`)]);
+    const stops: any[] = rs?.data ?? [];
+    if (!stops.length) return { route, co: "KMB", dest: "", stops: [] };
+    const names = await Promise.all(
+      stops.map((s) => j(`${KMB}/stop/${s.stop}`).then((x) => String(x?.data?.name_tc ?? s.stop)).catch(() => String(s.stop))),
+    );
     const etas: any[] = (eta?.data ?? []).filter((e: any) => e.dir === d);
     return {
-      route,
-      dest: String(stops.length ? names[names.length - 1] : ""),
+      route, co: "KMB",
+      dest: String(names[names.length - 1] ?? ""),
       stops: stops.map((s, i) => ({
-        seq: Number(s.seq),
-        id: String(s.stop),
-        name: names[i],
-        etas: etas
-          .filter((e) => Number(e.seq) === Number(s.seq) && e.eta)
-          .map((e) => String(e.eta))
-          .slice(0, 3),
+        seq: Number(s.seq), id: String(s.stop), name: names[i]!,
+        etas: etas.filter((e) => Number(e.seq) === Number(s.seq) && e.eta).map((e) => String(e.eta)).slice(0, 3),
       })),
     };
   });
 
-export const getMtr = createServerFn({ method: "GET" })
-  .inputValidator((d) => z.object({ line: z.string().max(4), sta: z.string().max(4) }).parse(d))
-  .handler(async ({ data }) => {
-    const x = await j(`https://rt.data.gov.hk/v1/transport/mtr/getSchedule.php?line=${data.line}&sta=${data.sta}&lang=TC`);
-    const s = x?.data?.[`${data.line}-${data.sta}`] ?? {};
-    const map = (a: any[] = []) => a.map((t) => ({ dest: String(t.dest), plat: String(t.plat), time: String(t.time), ttnt: String(t.ttnt ?? "") }));
-    return { up: map(s.UP), down: map(s.DOWN), status: Number(x?.status ?? 0), message: String(x?.message ?? ""), delay: x?.isdelay === "Y" };
-  });
+type R = { route: string; dir: "outbound" | "inbound"; orig: string; dest: string; co: "KMB" | "CTB" };
 
 export const getBusRoutes = createServerFn({ method: "GET" }).handler(async () => {
-  const x = await j("https://data.etabus.gov.hk/v1/transport/kmb/route/");
+  const [k, c] = await Promise.all([j(`${KMB}/route/`).catch(() => null), j(`${CTB}/route/CTB`).catch(() => null)]);
   const seen = new Set<string>();
-  return (x?.data ?? [])
-    .filter((r: any) => r.service_type === "1")
-    .map((r: any) => ({ route: String(r.route), dir: r.bound === "O" ? "outbound" : "inbound", orig: String(r.orig_tc), dest: String(r.dest_tc) }))
-    .filter((r: any) => { const k = r.route + r.dir; if (seen.has(k)) return false; seen.add(k); return true; }) as { route: string; dir: "outbound" | "inbound"; orig: string; dest: string }[];
+  const out: R[] = [];
+  for (const r of k?.data ?? []) {
+    if (r.service_type !== "1") continue;
+    const x: R = { route: String(r.route), dir: r.bound === "O" ? "outbound" : "inbound", orig: String(r.orig_tc), dest: String(r.dest_tc), co: "KMB" };
+    const key = "K" + x.route + x.dir; if (seen.has(key)) continue; seen.add(key); out.push(x);
+  }
+  for (const r of c?.data ?? []) {
+    out.push({ route: String(r.route), dir: "outbound", orig: String(r.orig_tc), dest: String(r.dest_tc), co: "CTB" });
+    out.push({ route: String(r.route), dir: "inbound", orig: String(r.dest_tc), dest: String(r.orig_tc), co: "CTB" });
+  }
+  return out;
 });
 
 export const getStopEta = createServerFn({ method: "GET" })
-  .inputValidator((d) => z.object({ stop: z.string().regex(/^[A-Z0-9]+$/) }).parse(d))
+  .inputValidator((d) => z.object({ stop: z.string().regex(/^[A-Z0-9]+$/), co, route: z.string().max(5).optional() }).parse(d))
   .handler(async ({ data }) => {
-    const x = await j(`https://data.etabus.gov.hk/v1/transport/kmb/stop-eta/${data.stop}`);
+    const x = data.co === "CTB"
+      ? await j(`${CTB}/eta/CTB/${data.stop}/${data.route ?? ""}`)
+      : await j(`${KMB}/stop-eta/${data.stop}`);
     const m = new Map<string, { route: string; dest: string; etas: string[] }>();
     for (const e of x?.data ?? []) {
       if (!e.eta) continue;
