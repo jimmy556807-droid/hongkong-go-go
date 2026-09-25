@@ -122,3 +122,12 @@ export const getStopEta = createServerFn({ method: "GET" })
     }
     return [...m.values()].sort((a, b) => a.route.localeCompare(b.route, "en", { numeric: true }));
   });
+
+export const getMtr = createServerFn({ method: "GET" })
+  .inputValidator((d) => z.object({ line: z.string().max(4), sta: z.string().max(4) }).parse(d))
+  .handler(async ({ data }) => {
+    const x = await j(`https://rt.data.gov.hk/v1/transport/mtr/getSchedule.php?line=${data.line}&sta=${data.sta}&lang=TC`);
+    const s = x?.data?.[`${data.line}-${data.sta}`] ?? {};
+    const map = (a: any[] = []) => a.map((t) => ({ dest: String(t.dest), plat: String(t.plat), time: String(t.time), ttnt: String(t.ttnt ?? "") }));
+    return { up: map(s.UP), down: map(s.DOWN), status: Number(x?.status ?? 0), message: String(x?.message ?? ""), delay: x?.isdelay === "Y" };
+  });
