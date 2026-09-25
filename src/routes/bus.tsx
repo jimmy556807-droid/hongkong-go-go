@@ -23,6 +23,7 @@ const MIN_PER_STOP = 2.2;
 function BusPage() {
   const [input, setInput] = useState("");
   const [route, setRoute] = useState("1A");
+  const [co, setCo] = useState<"KMB" | "CTB">("KMB");
   const [dir, setDir] = useState<"outbound" | "inbound">("outbound");
   const [from, setFrom] = useState<number | null>(null);
   const [to, setTo] = useState<number | null>(null);
@@ -31,15 +32,15 @@ function BusPage() {
   const fn = useServerFn(getBus);
   const routesFn = useServerFn(getBusRoutes);
   const routes = useQuery({ queryKey: ["busRoutes"], queryFn: routesFn, staleTime: 86400000 });
-  const q = useQuery({ queryKey: ["bus", route, dir], queryFn: () => fn({ data: { route, dir } }), refetchInterval: 30000 });
+  const q = useQuery({ queryKey: ["bus", co, route, dir], queryFn: () => fn({ data: { route, dir, co } }), refetchInterval: 30000 });
 
   const matches = useMemo(() => {
     const t = input.trim().toUpperCase();
     if (!t) return [];
-    return (routes.data ?? []).filter((r) => r.route.startsWith(t) || r.dest.includes(t) || r.orig.includes(t)).slice(0, 12);
+    return (routes.data ?? []).filter((r) => r.route.startsWith(t) || r.dest.includes(t) || r.orig.includes(t)).slice(0, 20);
   }, [input, routes.data]);
 
-  const pick = (r: string, d: "outbound" | "inbound") => { setRoute(r); setDir(d); setInput(""); setFrom(null); setTo(null); };
+  const pick = (r: string, d: "outbound" | "inbound", c: "KMB" | "CTB") => { setRoute(r); setDir(d); setCo(c); setInput(""); setFrom(null); setTo(null); };
   const stops = q.data?.stops ?? [];
   const trip = from != null && to != null && to > from ? (() => {
     const a = stops.find((s) => s.seq === from), b = stops.find((s) => s.seq === to);
@@ -51,7 +52,7 @@ function BusPage() {
 
   return (
     <div>
-      <PageHeader title="巴士" sub="九巴 / 龍運實時到站" />
+      <PageHeader title="巴士" sub="九巴 / 龍運 / 城巴（含前新巴）實時到站" />
       <div className="relative mx-5">
         <div className="flex gap-2">
           <div className="flex flex-1 items-center gap-2 rounded-xl border bg-card px-3">
@@ -63,9 +64,10 @@ function BusPage() {
         {matches.length > 0 && (
           <ul className="absolute inset-x-0 z-20 mt-1 max-h-80 overflow-auto rounded-xl border bg-card shadow-lg">
             {matches.map((r) => (
-              <li key={r.route + r.dir}>
-                <button onClick={() => pick(r.route, r.dir)} className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-muted">
+              <li key={r.co + r.route + r.dir}>
+                <button onClick={() => pick(r.route, r.dir, r.co)} className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-muted">
                   <b className="w-12 text-primary">{r.route}</b>
+                  <CoTag co={r.co} />
                   <span className="text-sm">{r.orig} → {r.dest}</span>
                 </button>
               </li>
@@ -74,7 +76,7 @@ function BusPage() {
         )}
       </div>
 
-      {q.data?.dest && <p className="mx-5 mt-4 text-sm text-muted-foreground"><b className="mr-2 text-lg text-foreground">{q.data.route}</b>往 {q.data.dest}</p>}
+      {q.data?.dest && <p className="mx-5 mt-4 text-sm text-muted-foreground"><b className="mr-2 text-lg text-foreground">{q.data.route}</b><CoTag co={co} /> 往 {q.data.dest}</p>}
 
       <div className="mx-5 mt-3 rounded-2xl border bg-card p-4">
         <p className="flex items-center gap-2 text-sm font-semibold"><Clock size={16} className="text-primary" />預計行程時間</p>
@@ -110,15 +112,19 @@ function BusPage() {
           );
         })}
       </ol>
-      {stop && <StopSheet stop={stop} onClose={() => setStop(null)} onPick={(r) => { setStop(null); setRoute(r); setFrom(null); setTo(null); }} />}
+      {stop && <StopSheet stop={stop} co={co} route={route} onClose={() => setStop(null)} onPick={(r) => { setStop(null); setRoute(r); setFrom(null); setTo(null); }} />}
     </div>
   );
 }
 
-function StopSheet({ stop, onClose, onPick }: { stop: { id: string; name: string }; onClose: () => void; onPick: (r: string) => void }) {
+function CoTag({ co }: { co: "KMB" | "CTB" }) {
+  return <span className={`mr-1 rounded px-1.5 py-0.5 text-[10px] font-bold ${co === "KMB" ? "bg-destructive/15 text-destructive" : "bg-accent text-accent-foreground"}`}>{co === "KMB" ? "九巴" : "城巴"}</span>;
+}
+
+function StopSheet({ stop, co, route, onClose, onPick }: { stop: { id: string; name: string }; co: "KMB" | "CTB"; route: string; onClose: () => void; onPick: (r: string) => void }) {
   const fn = useServerFn(getStopEta);
   const now = useNow();
-  const q = useQuery({ queryKey: ["stopEta", stop.id], queryFn: () => fn({ data: { stop: stop.id } }), refetchInterval: 30000 });
+  const q = useQuery({ queryKey: ["stopEta", co, stop.id, route], queryFn: () => fn({ data: { stop: stop.id, co, route } }), refetchInterval: 30000 });
   return (
     <div className="fixed inset-0 z-[60] flex items-end bg-foreground/40" onClick={onClose}>
       <div className="mx-auto max-h-[75vh] w-full max-w-md overflow-auto rounded-t-3xl bg-background p-5 pb-8" onClick={(e) => e.stopPropagation()}>
@@ -126,7 +132,7 @@ function StopSheet({ stop, onClose, onPick }: { stop: { id: string; name: string
           <h2 className="flex items-center gap-2 text-lg font-bold"><MapPin size={18} className="text-primary" />{stop.name}</h2>
           <button aria-label="關閉" onClick={onClose}><X /></button>
         </div>
-        <p className="text-xs text-muted-foreground">站點編號 {stop.id.slice(0, 8)}… · 所有經過路線</p>
+        <p className="text-xs text-muted-foreground">站點編號 {stop.id.slice(0, 8)}… · {co === "KMB" ? "所有經過路線" : `城巴 ${route} 到站`}</p>
         {q.isLoading && <p className="mt-4 text-muted-foreground">載入中…</p>}
         <div className="mt-3 divide-y rounded-2xl border bg-card">
           {q.data?.map((r) => (

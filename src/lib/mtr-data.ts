@@ -6,14 +6,16 @@ export const STATIONS: Record<string, string> = {
   HOK: "香港", KOW: "九龍", TSY: "青衣", AIR: "機場", AWE: "博覽館", OLY: "奧運", NAC: "南昌", SUN: "欣澳", TUC: "東涌",
   OCP: "海洋公園", WCH: "黃竹坑", LET: "利東", SOH: "海怡半島",
   EXC: "會展", HUH: "紅磡", MKK: "旺角東", TAW: "大圍", SHT: "沙田", FOT: "火炭", RAC: "馬場", UNI: "大學", TAP: "大埔墟", TWO: "太和", FAN: "粉嶺", SHS: "上水", LOW: "羅湖", LMC: "落馬洲",
+  WKS: "烏溪沙", MOS: "馬鞍山", HEO: "恆安", TSH: "大水坑", SHM: "石門", CIO: "第一城", STW: "沙田圍", CKT: "車公廟", HIK: "顯徑", KAT: "啟德", SUW: "宋皇臺", TKW: "土瓜灣", ETS: "尖東", AUS: "柯士甸", TWW: "荃灣西", KSR: "錦上路", YUL: "元朗", LOP: "朗屏", TIS: "天水圍", SIH: "兆康", TUM: "屯門",
 };
 
-export const LINES: { code: string; name: string; color: string; stations: string[] }[] = [
+export const LINES: { code: string; name: string; color: string; stations: string[]; firstLast?: { up: [string, string]; down: [string, string] } }[] = [
   { code: "ISL", name: "港島綫", color: "#0075C2", stations: ["KET", "HKU", "SYP", "SHW", "CEN", "ADM", "WAC", "CAB", "TIH", "FOH", "NOP", "QUB", "TAK", "SWH", "SKW", "HFC", "CHW"] },
   { code: "TWL", name: "荃灣綫", color: "#E2231A", stations: ["CEN", "ADM", "TST", "JOR", "YMT", "MOK", "PRE", "SSP", "CSW", "LCK", "MEF", "LAK", "KWF", "KWH", "TWH", "TSW"] },
   { code: "KTL", name: "觀塘綫", color: "#00A040", stations: ["WHA", "HOM", "YMT", "MOK", "PRE", "SKM", "KOT", "LOF", "WTS", "DIH", "CHH", "KOB", "NTK", "KWT", "LAT", "YAT", "TIK"] },
   { code: "TKL", name: "將軍澳綫", color: "#7D499D", stations: ["NOP", "QUB", "YAT", "TIK", "TKO", "LHP", "HAH", "POA"] },
   { code: "EAL", name: "東鐵綫", color: "#53B7E8", stations: ["ADM", "EXC", "HUH", "MKK", "KOT", "TAW", "SHT", "FOT", "RAC", "UNI", "TAP", "TWO", "FAN", "SHS", "LOW", "LMC"] },
+  { code: "TML", name: "屯馬綫", color: "#923011", stations: ["WKS", "MOS", "HEO", "TSH", "SHM", "CIO", "STW", "CKT", "TAW", "HIK", "DIH", "KAT", "SUW", "TKW", "HOM", "HUH", "ETS", "AUS", "NAC", "MEF", "TWW", "KSR", "YUL", "LOP", "TIS", "SIH", "TUM"], firstLast: { up: ["05:30", "00:24"], down: ["05:28", "00:34"] } },
   { code: "TCL", name: "東涌綫", color: "#F7943E", stations: ["HOK", "KOW", "OLY", "NAC", "LAK", "TSY", "SUN", "TUC"] },
   { code: "AEL", name: "機場快綫", color: "#00888A", stations: ["HOK", "KOW", "TSY", "AIR", "AWE"] },
   { code: "SIL", name: "南港島綫", color: "#BAC429", stations: ["ADM", "OCP", "WCH", "LET", "SOH"] },
