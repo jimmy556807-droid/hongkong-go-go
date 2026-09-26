@@ -28,6 +28,38 @@ const SPOTS = ["中環", "尖沙咀", "旺角", "銅鑼灣", "觀塘", "沙田",
 const PREFS = ["最快到達", "最少轉乘", "行少啲路", "港鐵優先", "巴士優先"];
 const MODE_ICON = { mtr: TrainFront, bus: Bus, ferry: Ship, walk: Footprints } as const;
 
+type Fav = { id: string; from: string; to: string; prefs: string[] };
+const FAV_KEY = "hk-transit-favs";
+
+function loadFavs(): Fav[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(FAV_KEY) ?? "[]");
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
+
+function useFavs() {
+  const [favs, setFavs] = useState<Fav[]>([]);
+  useEffect(() => setFavs(loadFavs()), []);
+  const save = (f: Fav) => {
+    setFavs((v) => {
+      const next = [f, ...v.filter((x) => !(x.from === f.from && x.to === f.to))].slice(0, 8);
+      localStorage.setItem(FAV_KEY, JSON.stringify(next));
+      return next;
+    });
+  };
+  const remove = (id: string) => {
+    setFavs((v) => {
+      const next = v.filter((x) => x.id !== id);
+      localStorage.setItem(FAV_KEY, JSON.stringify(next));
+      return next;
+    });
+  };
+  return { favs, save, remove };
+}
+
 function LegRow({ leg }: { leg: Leg }) {
   const I = MODE_ICON[leg.mode];
   return (
