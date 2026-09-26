@@ -82,10 +82,17 @@ function Planner() {
   const [to, setTo] = useState("");
   const [prefs, setPrefs] = useState<string[]>(["最快到達"]);
   const [active, setActive] = useState<"from" | "to">("from");
+  const { favs, save, remove } = useFavs();
   const plan = useServerFn(planTrip);
   const m = useMutation({ mutationFn: () => plan({ data: { from, to, prefs } }) });
 
   const toggle = (p: string) => setPrefs((v) => (v.includes(p) ? v.filter((x) => x !== p) : [...v, p]));
+  const canSave = from.trim() && to.trim();
+  const applyFav = (f: Fav) => {
+    setFrom(f.from);
+    setTo(f.to);
+    setPrefs(f.prefs);
+  };
 
   return (
     <section className="mx-5 mt-4 rounded-2xl border bg-card p-4">
