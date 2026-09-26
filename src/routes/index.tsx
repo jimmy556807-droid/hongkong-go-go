@@ -23,6 +23,90 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
+const SPOTS = ["中環", "尖沙咀", "旺角", "銅鑼灣", "觀塘", "沙田", "屯門", "機場"];
+const PREFS = ["最快到達", "最少轉乘", "行少啲路", "港鐵優先", "巴士優先"];
+const MODE_ICON = { mtr: TrainFront, bus: Bus, ferry: Ship, walk: Footprints } as const;
+
+function LegRow({ leg }: { leg: Leg }) {
+  const I = MODE_ICON[leg.mode];
+  return (
+    <li className="flex gap-3">
+      <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
+        <I size={16} />
+      </span>
+      <div className="min-w-0 flex-1 pb-3">
+        <p className="text-sm font-semibold">{leg.name} <span className="font-normal text-muted-foreground">· 約 {leg.mins} 分鐘</span></p>
+        <p className="truncate text-xs text-muted-foreground">{leg.from} → {leg.to}</p>
+        {leg.note && <p className="mt-0.5 text-xs text-muted-foreground">{leg.note}</p>}
+        {leg.live && <p className="mt-1 inline-block rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">{leg.live}</p>}
+      </div>
+    </li>
+  );
+}
+
+function Planner() {
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [prefs, setPrefs] = useState<string[]>(["最快到達"]);
+  const [active, setActive] = useState<"from" | "to">("from");
+  const plan = useServerFn(planTrip);
+  const m = useMutation({ mutationFn: () => plan({ data: { from, to, prefs } }) });
+
+  const toggle = (p: string) => setPrefs((v) => (v.includes(p) ? v.filter((x) => x !== p) : [...v, p]));
+
+  return (
+    <section className="mx-5 mt-4 rounded-2xl border bg-card p-4">
+      <h2 className="flex items-center gap-2 font-semibold"><Sparkles size={18} className="text-primary" />智能行程規劃</h2>
+      <p className="mt-1 text-xs text-muted-foreground">輸入起點同目的地，結合實時交通同天氣為你安排路線。</p>
+      <div className="mt-3 space-y-2">
+        <input value={from} onFocus={() => setActive("from")} onChange={(e) => setFrom(e.target.value)} placeholder="出發地，例如：中環" className="w-full rounded-xl border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary" />
+        <input value={to} onFocus={() => setActive("to")} onChange={(e) => setTo(e.target.value)} placeholder="目的地，例如：沙田" className="w-full rounded-xl border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary" />
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {SPOTS.map((s) => (
+          <button key={s} type="button" onClick={() => (active === "from" ? setFrom(s) : setTo(s))} className="rounded-full border px-2.5 py-1 text-xs text-muted-foreground">{s}</button>
+        ))}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {PREFS.map((p) => (
+          <button key={p} type="button" onClick={() => toggle(p)} className={`rounded-full px-3 py-1.5 text-xs font-medium ${prefs.includes(p) ? "bg-primary text-primary-foreground" : "border text-muted-foreground"}`}>{p}</button>
+        ))}
+      </div>
+      <button
+        type="button"
+        disabled={!from.trim() || !to.trim() || m.isPending}
+        onClick={() => m.mutate()}
+        className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+      >
+        {m.isPending ? <><Loader2 size={16} className="animate-spin" />規劃緊路線…</> : <>一鍵出發 <ArrowRight size={16} /></>}
+      </button>
+
+      {m.isError && <p className="mt-3 rounded-xl bg-destructive/10 p-3 text-sm text-destructive">規劃失敗，請稍後再試。</p>}
+      {m.data?.error && <p className="mt-3 rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{m.data.error}</p>}
+
+      {!!m.data?.plans.length && (
+        <div className="mt-4 space-y-3">
+          {m.data.plans.map((p, i) => (
+            <article key={i} className={`rounded-xl border p-3 ${i === 0 ? "border-primary/40 bg-primary/5" : ""}`}>
+              <div className="flex items-baseline justify-between gap-2">
+                <h3 className="text-sm font-bold">{i === 0 ? "推薦・" : ""}{p.title}</h3>
+                <span className="flex shrink-0 items-center gap-1 text-sm font-semibold text-primary"><Clock size={13} />{p.totalMins} 分鐘</span>
+              </div>
+              <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                {p.fare && <span className="flex items-center gap-1"><Wallet size={12} />{p.fare}</span>}
+                {p.tags.map((t) => <span key={t} className="rounded-full bg-muted px-2 py-0.5">{t}</span>)}
+              </div>
+              <ul className="mt-3">{p.legs.map((l, j) => <LegRow key={j} leg={l} />)}</ul>
+              {p.tip && <p className="flex items-start gap-1.5 rounded-lg bg-muted/60 p-2 text-xs text-muted-foreground"><Lightbulb size={13} className="mt-0.5 shrink-0" />{p.tip}</p>}
+            </article>
+          ))}
+          <p className="text-center text-xs text-muted-foreground">建議由 AI 生成，實際班次以官方公布為準。</p>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function Index() {
   const w = useQuery({ queryKey: ["weather"], queryFn: useServerFn(getWeather), refetchInterval: 300000 });
   const n = useQuery({ queryKey: ["news"], queryFn: useServerFn(getNews), refetchInterval: 60000 });
@@ -42,7 +126,9 @@ function Index() {
         </div>
         {!!w.data?.warnings.length && <p className="mt-2 text-sm font-medium">⚠ {w.data.warnings.join("、")}</p>}
       </div>
+      <Planner />
       <div className="mx-5 mt-4 grid grid-cols-3 gap-3">
+
         {tiles.map(({ to, icon: I, label }) => (
           <Link key={to} to={to} className="flex flex-col items-center gap-2 rounded-2xl border bg-card p-4 text-sm font-medium">
             <I className="text-primary" /> {label}
