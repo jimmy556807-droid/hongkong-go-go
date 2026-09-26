@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
-import { Clock, MapPin } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Clock, MapPin, ArrowRight } from "lucide-react";
 import { getMtr } from "@/lib/hk.functions";
 import { LINES, STATIONS } from "@/lib/mtr-data";
 import { PageHeader, Countdown, useNow } from "@/components/BottomNav";
@@ -11,36 +11,109 @@ export const Route = createFileRoute("/mtr")({
   head: () => ({
     meta: [
       { title: "港鐵下一班車 — 港行" },
-      { name: "description", content: "港鐵路線搜尋、車站詳情、列車到站倒數及預計行程時間。" },
+      { name: "description", content: "港鐵路線搜尋、跨綫轉乘、車站詳情、列車到站倒數及預計行程時間。" },
       { property: "og:title", content: "港鐵下一班車 — 港行" },
-      { property: "og:description", content: "港鐵路線搜尋、車站詳情、列車到站倒數及預計行程時間。" },
+      { property: "og:description", content: "港鐵路線搜尋、跨綫轉乘、車站詳情、列車到站倒數及預計行程時間。" },
     ],
   }),
   component: MtrPage,
 });
 
 const MIN_PER_STOP = 2.3;
+const TRANSFER_MIN = 4;
 type Line = (typeof LINES)[number];
+
+const ALL_STATIONS = Object.keys(STATIONS).sort((a, b) =>
+  STATIONS[a]!.localeCompare(STATIONS[b]!, "zh-HK"),
+);
+const LINE_BY_CODE = Object.fromEntries(LINES.map((l) => [l.code, l]));
+
+type Seg = { line: Line; from: string; to: string; stops: number };
+
+// Dijkstra over (station, line) states: ride 1 stop = 1, change line at same station = 2
+function planRoute(from: string, to: string): { segs: Seg[]; stops: number; transfers: number } | null {
+  if (from === to) return null;
+  const key = (s: string, l: string) => `${s}|${l}`;
+  const dist = new Map<string, number>();
+  const prev = new Map<string, string>();
+  const pq: [number, string][] = [];
+  const push = (d: number, k: string) => {
+    pq.push([d, k]);
+    pq.sort((a, b) => a[0] - b[0]);
+  };
+  for (const l of LINES) if (l.stations.includes(from)) {
+    dist.set(key(from, l.code), 0);
+    push(0, key(from, l.code));
+  }
+  let endKey = "";
+  while (pq.length) {
+    const [d, k] = pq.shift()!;
+    if (d > (dist.get(k) ?? Infinity)) continue;
+    const [s, lc] = k.split("|") as [string, string];
+    if (s === to) { endKey = k; break; }
+    const line = LINE_BY_CODE[lc]!;
+    const i = line.stations.indexOf(s);
+    for (const ns of [line.stations[i - 1], line.stations[i + 1]]) {
+      if (!ns) continue;
+      const nk = key(ns, lc);
+      if (d + 1 < (dist.get(nk) ?? Infinity)) {
+        dist.set(nk, d + 1);
+        prev.set(nk, k);
+        push(d + 1, nk);
+      }
+    }
+    for (const l of LINES) {
+      if (l.code !== lc && l.stations.includes(s)) {
+        const nk = key(s, l.code);
+        if (d + 2 < (dist.get(nk) ?? Infinity)) {
+          dist.set(nk, d + 2);
+          prev.set(nk, k);
+          push(d + 2, nk);
+        }
+      }
+    }
+  }
+  if (!endKey) return null;
+  const path: string[] = [];
+  for (let k: string | undefined = endKey; k; k = prev.get(k)) path.unshift(k);
+  const segs: Seg[] = [];
+  for (let i = 0; i < path.length; ) {
+    const [s, lc] = path[i]!.split("|") as [string, string];
+    let j = i;
+    while (j + 1 < path.length && path[j + 1]!.split("|")[1] === lc) j++;
+    const [e] = path[j]!.split("|") as [string];
+    if (s !== e) segs.push({ line: LINE_BY_CODE[lc]!, from: s, to: e, stops: j - i });
+    i = j + 1;
+  }
+  return { segs, stops: segs.reduce((a, x) => a + x.stops, 0), transfers: segs.length - 1 };
+}
 
 function toHkIso(t: string) { return t.replace(" ", "T") + "+08:00"; }
 
 function MtrPage() {
   const [line, setLine] = useState<Line>(LINES[0]!);
-  const [sta, setSta] = useState(line.stations[4]!);
-  const [dest, setDest] = useState(line.stations[line.stations.length - 1]!);
+  const [sta, setSta] = useState("CEN");
+  const [dest, setDest] = useState("TSW");
   const now = useNow();
   const fn = useServerFn(getMtr);
-  const q = useQuery({ queryKey: ["mtr", line.code, sta], queryFn: () => fn({ data: { line: line.code, sta } }), refetchInterval: 20000 });
-  const groups = q.data ? [{ k: "UP", t: q.data.up }, { k: "DOWN", t: q.data.down }].filter((g) => g.t.length) : [];
-  const otherLines = LINES.filter((l) => l.code !== line.code && l.stations.includes(sta));
 
-  const i = line.stations.indexOf(sta), j = line.stations.indexOf(dest);
-  const n = Math.abs(j - i);
-  // UP = towards end of list in MTR data for most lines
-  const wantUp = j > i;
+  const route = useMemo(() => planRoute(sta, dest), [sta, dest]);
+  const boardLine = route?.segs[0]?.line ?? line;
+
+  const q = useQuery({
+    queryKey: ["mtr", boardLine.code, sta],
+    queryFn: () => fn({ data: { line: boardLine.code, sta } }),
+    refetchInterval: 20000,
+  });
+  const groups = q.data ? [{ k: "UP", t: q.data.up }, { k: "DOWN", t: q.data.down }].filter((g) => g.t.length) : [];
+  const otherLines = LINES.filter((l) => l.code !== boardLine.code && l.stations.includes(sta));
+
+  // direction of first segment for live wait time
+  const seg0 = route?.segs[0];
+  const wantUp = seg0 ? seg0.line.stations.indexOf(seg0.to) > seg0.line.stations.indexOf(seg0.from) : true;
   const next = (wantUp ? q.data?.up : q.data?.down)?.[0];
   const waitMin = next ? Math.max(0, (new Date(toHkIso(next.time)).getTime() - now) / 60000) : null;
-  const ride = Math.round(n * MIN_PER_STOP);
+  const ride = route ? Math.round(route.stops * MIN_PER_STOP + route.transfers * TRANSFER_MIN) : 0;
 
   const selectLine = (l: Line) => { setLine(l); setSta(l.stations[0]!); setDest(l.stations[l.stations.length - 1]!); };
 
@@ -58,35 +131,43 @@ function MtrPage() {
       </div>
 
       <div className="mx-5 mt-2 grid grid-cols-2 gap-2">
-        <label className="text-xs text-muted-foreground">起點
+        <label className="text-xs text-muted-foreground">起點（全綫車站）
           <select value={sta} onChange={(e) => setSta(e.target.value)} className="mt-1 w-full rounded-xl border bg-card px-3 py-3 text-base font-semibold text-foreground">
-            {line.stations.map((s) => <option key={s} value={s}>{STATIONS[s] ?? s}</option>)}
+            {ALL_STATIONS.map((s) => <option key={s} value={s}>{STATIONS[s] ?? s}</option>)}
           </select>
         </label>
-        <label className="text-xs text-muted-foreground">終點
+        <label className="text-xs text-muted-foreground">終點（全綫車站）
           <select value={dest} onChange={(e) => setDest(e.target.value)} className="mt-1 w-full rounded-xl border bg-card px-3 py-3 text-base font-semibold text-foreground">
-            {line.stations.map((s) => <option key={s} value={s}>{STATIONS[s] ?? s}</option>)}
+            {ALL_STATIONS.map((s) => <option key={s} value={s}>{STATIONS[s] ?? s}</option>)}
           </select>
         </label>
       </div>
 
       <div className="mx-5 mt-3 rounded-2xl border bg-card p-4 text-sm">
         <p className="flex items-center gap-2 font-semibold"><Clock size={16} className="text-primary" />預計行程時間</p>
-        {n === 0 ? <p className="mt-1 text-muted-foreground">請選擇不同的起點和終點</p> : (
+        {!route ? <p className="mt-1 text-muted-foreground">請選擇不同的起點和終點</p> : (
           <>
-            <p className="mt-1">{STATIONS[sta]} → {STATIONS[dest]}（{n} 個站）乘車約 <b className="text-lg text-primary">{ride}</b> 分鐘</p>
-            {waitMin != null && <p className="text-muted-foreground">下班車 {Math.round(waitMin)} 分鐘後，預計 {new Date(now + (waitMin + ride) * 60000).toLocaleTimeString("zh-HK", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Hong_Kong" })} 到達</p>}
+            <p className="mt-1">{STATIONS[sta]} → {STATIONS[dest]}（{route.stops} 個站{route.transfers > 0 ? ` · 轉乘 ${route.transfers} 次` : ""}）約 <b className="text-lg text-primary">{ride}</b> 分鐘</p>
+            <div className="mt-2 space-y-1.5">
+              {route.segs.map((s, i) => (
+                <div key={i} className="flex items-center gap-2 text-xs">
+                  <span className="shrink-0 rounded-full px-2 py-0.5 font-medium text-white" style={{ background: s.line.color }}>{s.line.name}</span>
+                  <span className="text-muted-foreground">{STATIONS[s.from]} <ArrowRight size={10} className="inline" /> {STATIONS[s.to]}（{s.stops} 站）</span>
+                </div>
+              ))}
+            </div>
+            {waitMin != null && <p className="mt-2 text-muted-foreground">下班車 {Math.round(waitMin)} 分鐘後，預計 {new Date(now + (waitMin + ride) * 60000).toLocaleTimeString("zh-HK", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Hong_Kong" })} 到達</p>}
           </>
         )}
       </div>
 
       <div className="mx-5 mt-3 rounded-2xl border bg-card p-4 text-sm">
         <p className="flex items-center gap-2 font-semibold"><MapPin size={16} className="text-primary" />{STATIONS[sta]}站 詳情</p>
-        <p className="mt-1 text-muted-foreground">車站代號 {sta} · {line.name}第 {i + 1} 站</p>
+        <p className="mt-1 text-muted-foreground">車站代號 {sta} · {boardLine.name}第 {boardLine.stations.indexOf(sta) + 1} 站</p>
         {otherLines.length > 0 && (
           <div className="mt-2 flex flex-wrap items-center gap-2">轉乘：
             {otherLines.map((l) => (
-              <button key={l.code} onClick={() => { setLine(l); setDest(l.stations[l.stations.length - 1]!); }} className="rounded-full px-2 py-0.5 text-xs text-white" style={{ background: l.color }}>{l.name}</button>
+              <button key={l.code} onClick={() => setLine(l)} className="rounded-full px-2 py-0.5 text-xs text-white" style={{ background: l.color }}>{l.name}</button>
             ))}
           </div>
         )}
@@ -107,7 +188,7 @@ function MtrPage() {
       <div className="mx-5 mt-4 space-y-4">
         {groups.map((g) => (
           <div key={g.k} className="overflow-hidden rounded-2xl border bg-card">
-            <div className="px-4 py-2 text-sm font-semibold text-white" style={{ background: line.color }}>往 {STATIONS[g.t[0]!.dest] ?? g.t[0]!.dest}</div>
+            <div className="px-4 py-2 text-sm font-semibold text-white" style={{ background: boardLine.color }}>往 {STATIONS[g.t[0]!.dest] ?? g.t[0]!.dest}</div>
             {g.t.map((t, k) => (
               <div key={k} className="flex items-center justify-between border-t px-4 py-3">
                 <span className="text-sm text-muted-foreground">{t.plat} 號月台 · {t.time.slice(11, 16)}</span>
