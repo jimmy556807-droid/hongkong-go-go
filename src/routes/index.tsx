@@ -130,14 +130,24 @@ function Planner() {
           <button key={p} type="button" onClick={() => toggle(p)} className={`rounded-full px-3 py-1.5 text-xs font-medium ${prefs.includes(p) ? "bg-primary text-primary-foreground" : "border text-muted-foreground"}`}>{p}</button>
         ))}
       </div>
-      <button
-        type="button"
-        disabled={!from.trim() || !to.trim() || m.isPending}
-        onClick={() => m.mutate()}
-        className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
-      >
-        {m.isPending ? <><Loader2 size={16} className="animate-spin" />規劃緊路線…</> : <>一鍵出發 <ArrowRight size={16} /></>}
-      </button>
+      <div className="mt-4 flex gap-2">
+        <button
+          type="button"
+          disabled={!canSave}
+          onClick={() => save({ id: crypto.randomUUID(), from: from.trim(), to: to.trim(), prefs })}
+          className="flex items-center justify-center gap-2 rounded-xl border border-primary px-4 py-3 text-sm font-semibold text-primary disabled:opacity-50"
+        >
+          <Star size={16} />收藏
+        </button>
+        <button
+          type="button"
+          disabled
+          title="智能建議暫停中"
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground opacity-50"
+        >
+          {m.isPending ? <><Loader2 size={16} className="animate-spin" />規劃緊路線…</> : <>一鍵出發（暫停中）<ArrowRight size={16} /></>}
+        </button>
+      </div>
 
       {m.isError && <p className="mt-3 rounded-xl bg-destructive/10 p-3 text-sm text-destructive">規劃失敗，請稍後再試。</p>}
       {m.data?.error && <p className="mt-3 rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{m.data.error}</p>}
