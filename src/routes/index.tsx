@@ -97,7 +97,25 @@ function Planner() {
   return (
     <section className="mx-5 mt-4 rounded-2xl border bg-card p-4">
       <h2 className="flex items-center gap-2 font-semibold"><Sparkles size={18} className="text-primary" />智能行程規劃</h2>
-      <p className="mt-1 text-xs text-muted-foreground">輸入起點同目的地，結合實時交通同天氣為你安排路線。</p>
+      <p className="mt-1 text-xs text-muted-foreground">輸入起點同目的地，結合實時交通同天氣為你安排路線。<span className="text-primary">（智能建議暫停中，可先收藏常用行程）</span></p>
+
+      {favs.length > 0 && (
+        <div className="mt-3">
+          <p className="mb-1.5 flex items-center gap-1 text-xs font-medium text-muted-foreground"><Star size={12} className="text-primary" />常用行程</p>
+          <div className="space-y-1.5">
+            {favs.map((f) => (
+              <div key={f.id} className="flex items-center gap-2 rounded-xl border bg-background px-3 py-2">
+                <button type="button" onClick={() => applyFav(f)} className="min-w-0 flex-1 text-left">
+                  <p className="truncate text-sm font-medium">{f.from} → {f.to}</p>
+                  {f.prefs.length > 0 && <p className="truncate text-xs text-muted-foreground">{f.prefs.join("、")}</p>}
+                </button>
+                <button type="button" onClick={() => applyFav(f)} aria-label="載入行程" className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"><Play size={14} /></button>
+                <button type="button" onClick={() => remove(f.id)} aria-label="刪除收藏" className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground"><Trash2 size={14} /></button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="mt-3 space-y-2">
         <input value={from} onFocus={() => setActive("from")} onChange={(e) => setFrom(e.target.value)} placeholder="出發地，例如：中環" className="w-full rounded-xl border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary" />
         <input value={to} onFocus={() => setActive("to")} onChange={(e) => setTo(e.target.value)} placeholder="目的地，例如：沙田" className="w-full rounded-xl border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary" />
