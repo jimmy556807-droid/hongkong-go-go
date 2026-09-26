@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Bus, TrainFront, Ship, TriangleAlert, Thermometer, Droplets,
   Sparkles, Footprints, ArrowRight, Clock, Wallet, Lightbulb, Loader2,
+  Star, Trash2, Play,
 } from "lucide-react";
 import { getNews, getWeather } from "@/lib/hk.functions";
 import { planTrip, type Leg } from "@/lib/trip.functions";
@@ -26,6 +27,38 @@ export const Route = createFileRoute("/")({
 const SPOTS = ["中環", "尖沙咀", "旺角", "銅鑼灣", "觀塘", "沙田", "屯門", "機場"];
 const PREFS = ["最快到達", "最少轉乘", "行少啲路", "港鐵優先", "巴士優先"];
 const MODE_ICON = { mtr: TrainFront, bus: Bus, ferry: Ship, walk: Footprints } as const;
+
+type Fav = { id: string; from: string; to: string; prefs: string[] };
+const FAV_KEY = "hk-transit-favs";
+
+function loadFavs(): Fav[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(FAV_KEY) ?? "[]");
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
+
+function useFavs() {
+  const [favs, setFavs] = useState<Fav[]>([]);
+  useEffect(() => setFavs(loadFavs()), []);
+  const save = (f: Fav) => {
+    setFavs((v) => {
+      const next = [f, ...v.filter((x) => !(x.from === f.from && x.to === f.to))].slice(0, 8);
+      localStorage.setItem(FAV_KEY, JSON.stringify(next));
+      return next;
+    });
+  };
+  const remove = (id: string) => {
+    setFavs((v) => {
+      const next = v.filter((x) => x.id !== id);
+      localStorage.setItem(FAV_KEY, JSON.stringify(next));
+      return next;
+    });
+  };
+  return { favs, save, remove };
+}
 
 function LegRow({ leg }: { leg: Leg }) {
   const I = MODE_ICON[leg.mode];
@@ -49,15 +82,40 @@ function Planner() {
   const [to, setTo] = useState("");
   const [prefs, setPrefs] = useState<string[]>(["最快到達"]);
   const [active, setActive] = useState<"from" | "to">("from");
+  const { favs, save, remove } = useFavs();
   const plan = useServerFn(planTrip);
   const m = useMutation({ mutationFn: () => plan({ data: { from, to, prefs } }) });
 
   const toggle = (p: string) => setPrefs((v) => (v.includes(p) ? v.filter((x) => x !== p) : [...v, p]));
+  const canSave = from.trim() && to.trim();
+  const applyFav = (f: Fav) => {
+    setFrom(f.from);
+    setTo(f.to);
+    setPrefs(f.prefs);
+  };
 
   return (
     <section className="mx-5 mt-4 rounded-2xl border bg-card p-4">
       <h2 className="flex items-center gap-2 font-semibold"><Sparkles size={18} className="text-primary" />智能行程規劃</h2>
-      <p className="mt-1 text-xs text-muted-foreground">輸入起點同目的地，結合實時交通同天氣為你安排路線。</p>
+      <p className="mt-1 text-xs text-muted-foreground">輸入起點同目的地，結合實時交通同天氣為你安排路線。<span className="text-primary">（智能建議暫停中，可先收藏常用行程）</span></p>
+
+      {favs.length > 0 && (
+        <div className="mt-3">
+          <p className="mb-1.5 flex items-center gap-1 text-xs font-medium text-muted-foreground"><Star size={12} className="text-primary" />常用行程</p>
+          <div className="space-y-1.5">
+            {favs.map((f) => (
+              <div key={f.id} className="flex items-center gap-2 rounded-xl border bg-background px-3 py-2">
+                <button type="button" onClick={() => applyFav(f)} className="min-w-0 flex-1 text-left">
+                  <p className="truncate text-sm font-medium">{f.from} → {f.to}</p>
+                  {f.prefs.length > 0 && <p className="truncate text-xs text-muted-foreground">{f.prefs.join("、")}</p>}
+                </button>
+                <button type="button" onClick={() => applyFav(f)} aria-label="載入行程" className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"><Play size={14} /></button>
+                <button type="button" onClick={() => remove(f.id)} aria-label="刪除收藏" className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground"><Trash2 size={14} /></button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="mt-3 space-y-2">
         <input value={from} onFocus={() => setActive("from")} onChange={(e) => setFrom(e.target.value)} placeholder="出發地，例如：中環" className="w-full rounded-xl border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary" />
         <input value={to} onFocus={() => setActive("to")} onChange={(e) => setTo(e.target.value)} placeholder="目的地，例如：沙田" className="w-full rounded-xl border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary" />
@@ -72,14 +130,24 @@ function Planner() {
           <button key={p} type="button" onClick={() => toggle(p)} className={`rounded-full px-3 py-1.5 text-xs font-medium ${prefs.includes(p) ? "bg-primary text-primary-foreground" : "border text-muted-foreground"}`}>{p}</button>
         ))}
       </div>
-      <button
-        type="button"
-        disabled={!from.trim() || !to.trim() || m.isPending}
-        onClick={() => m.mutate()}
-        className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
-      >
-        {m.isPending ? <><Loader2 size={16} className="animate-spin" />規劃緊路線…</> : <>一鍵出發 <ArrowRight size={16} /></>}
-      </button>
+      <div className="mt-4 flex gap-2">
+        <button
+          type="button"
+          disabled={!canSave}
+          onClick={() => save({ id: crypto.randomUUID(), from: from.trim(), to: to.trim(), prefs })}
+          className="flex items-center justify-center gap-2 rounded-xl border border-primary px-4 py-3 text-sm font-semibold text-primary disabled:opacity-50"
+        >
+          <Star size={16} />收藏
+        </button>
+        <button
+          type="button"
+          disabled
+          title="智能建議暫停中"
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground opacity-50"
+        >
+          {m.isPending ? <><Loader2 size={16} className="animate-spin" />規劃緊路線…</> : <>一鍵出發（暫停中）<ArrowRight size={16} /></>}
+        </button>
+      </div>
 
       {m.isError && <p className="mt-3 rounded-xl bg-destructive/10 p-3 text-sm text-destructive">規劃失敗，請稍後再試。</p>}
       {m.data?.error && <p className="mt-3 rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{m.data.error}</p>}
