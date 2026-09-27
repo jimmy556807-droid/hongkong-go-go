@@ -7,7 +7,7 @@ import { getBus, getBusRoutes, getStopEta } from "@/lib/hk.functions";
 import { getBusFare } from "@/lib/fare.functions";
 import { Wallet } from "lucide-react";
 
-function BusFareBox({ route, co, dir, idx, name }: { route: string; co: "KMB" | "CTB"; dir: "outbound" | "inbound"; idx: number | null; name?: string }) {
+function BusFareBox({ route, co, dir, idx, name }: { route: string; co: "KMB" | "CTB"; dir: "outbound" | "inbound"; idx: number | null; name?: string | undefined }) {
   const fn = useServerFn(getBusFare);
   const q = useQuery({ queryKey: ["busFare", route, co, dir], queryFn: () => fn({ data: { route, co, dir } }), staleTime: 3600000, enabled: !!route });
   const f = q.data;

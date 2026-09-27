@@ -58,7 +58,7 @@ function FerryPage() {
                 <div className="flex-1">
                   <p className="font-semibold">{r.from} → {r.to}</p>
                   <p className="text-xs text-muted-foreground">{r.op} · 航程約 {r.dur} 分鐘</p>
-                  <p className="mt-0.5 text-xs"><span className="text-muted-foreground">成人車資 </span><b className="text-primary">平日 ${r.fare[0].toFixed(1)}</b>{r.fare[1] !== r.fare[0] && <span className="text-muted-foreground"> · 假日 ${r.fare[1].toFixed(1)}</span>}<span className="text-muted-foreground"> · 長者 $2（65 歲以上）· 小童約半價</span></p>
+                  <p className="mt-0.5 text-xs"><span className="text-muted-foreground">成人車資 </span><b className="text-primary">平日 ${r.fare[0]!.toFixed(1)}</b>{r.fare[1] !== r.fare[0] && <span className="text-muted-foreground"> · 假日 ${r.fare[1]!.toFixed(1)}</span>}<span className="text-muted-foreground"> · 長者 $2（65 歲以上）· 小童約半價</span></p>
                 </div>
                 <span className="text-right text-sm">{deps[0] ? <Countdown at={deps[0]} now={now} /> : <span className="text-muted-foreground">今日已停航</span>}</span>
               </button>
