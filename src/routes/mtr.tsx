@@ -12,7 +12,7 @@ function MtrFareBox({ from, to }: { from: string; to: string }) {
   const f = q.data;
   const rows: [string, number | undefined][] = [
     ["八達通成人", f?.octAdult], ["八達通學生", f?.octStudent], ["八達通小童", f?.octChild],
-    ["長者 / 樂悠咭", f?.octElder], ["單程票成人", f?.single], ["單程票小童", f?.singleChild],
+    ["長者優惠", f?.octElder], ["單程票成人", f?.single], ["單程票小童", f?.singleChild],
   ];
   return (
     <div className="mt-3 border-t pt-3">
