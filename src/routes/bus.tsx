@@ -4,6 +4,34 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
 import { ArrowLeftRight, Search, Clock, MapPin, X } from "lucide-react";
 import { getBus, getBusRoutes, getStopEta } from "@/lib/hk.functions";
+import { getBusFare } from "@/lib/fare.functions";
+import { Wallet } from "lucide-react";
+
+function BusFareBox({ route, co, dir, idx, name }: { route: string; co: "KMB" | "CTB"; dir: "outbound" | "inbound"; idx: number | null; name?: string }) {
+  const fn = useServerFn(getBusFare);
+  const q = useQuery({ queryKey: ["busFare", route, co, dir], queryFn: () => fn({ data: { route, co, dir } }), staleTime: 3600000, enabled: !!route });
+  const f = q.data;
+  const pick = (a: number[] | null | undefined) => (a && a.length ? a[Math.min(idx ?? 0, a.length - 1)] : undefined);
+  const full = f ? Math.max(...f.fares) : undefined;
+  const cur = pick(f?.fares), hol = pick(f?.holiday);
+  return (
+    <div className="mx-5 mt-3 rounded-2xl border bg-card p-4 text-sm">
+      <p className="flex items-center gap-2 font-semibold"><Wallet size={16} className="text-primary" />車資詳情</p>
+      {q.isLoading && <p className="mt-1 text-muted-foreground">載入中…</p>}
+      {(q.isError || q.data === null) && <p className="mt-1 text-muted-foreground">暫無此路線車資資料</p>}
+      {f && (
+        <div className="mt-2 grid grid-cols-2 gap-1.5 text-xs">
+          <div className="flex justify-between rounded-lg bg-muted/60 px-2.5 py-1.5"><span className="text-muted-foreground">全程成人</span><b>${full?.toFixed(1)}</b></div>
+          <div className="flex justify-between rounded-lg bg-muted/60 px-2.5 py-1.5"><span className="text-muted-foreground">{idx != null ? `${name ?? "此站"}上車` : "分段收費"}</span><b>{idx != null ? `$${cur?.toFixed(1)}` : f.fares.some((x) => x !== full) ? "有" : "無"}</b></div>
+          {cur != null && <div className="flex justify-between rounded-lg bg-muted/60 px-2.5 py-1.5"><span className="text-muted-foreground">小童 / 長者（約半價）</span><b>${(cur / 2).toFixed(1)}</b></div>}
+          <div className="flex justify-between rounded-lg bg-muted/60 px-2.5 py-1.5"><span className="text-muted-foreground">$2 優惠（65 歲以上）</span><b>{(cur ?? 0) > 2 ? "$2.0" : `$${cur?.toFixed(1)}`}</b></div>
+          {hol != null && hol !== cur && <div className="flex justify-between rounded-lg bg-muted/60 px-2.5 py-1.5"><span className="text-muted-foreground">假日車資</span><b>${hol.toFixed(1)}</b></div>}
+        </div>
+      )}
+      <p className="mt-1.5 text-[11px] text-muted-foreground">撳「起點」可查分段車資；小童 / 長者車資為估算，以車上公布為準。</p>
+    </div>
+  );
+}
 import { PageHeader, Countdown, useNow } from "@/components/BottomNav";
 
 export const Route = createFileRoute("/bus")({
@@ -91,6 +119,7 @@ function BusPage() {
         )}
       </div>
 
+      {q.data?.dest && <BusFareBox route={route} co={co} dir={dir} idx={from != null ? stops.findIndex((s) => s.seq === from) : null} name={stops.find((s) => s.seq === from)?.name} />}
       {q.isLoading && <p className="mx-5 mt-6 text-muted-foreground">載入中…</p>}
       {q.isError && <p className="mx-5 mt-6 text-destructive">無法載入，請檢查路線</p>}
       {q.data && stops.length === 0 && <p className="mx-5 mt-6 text-muted-foreground">找不到此路線</p>}
