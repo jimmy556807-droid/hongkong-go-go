@@ -97,7 +97,7 @@ function Planner() {
   return (
     <section className="mx-5 mt-4 rounded-2xl border bg-card p-4">
       <h2 className="flex items-center gap-2 font-semibold"><Sparkles size={18} className="text-primary" />智能行程規劃</h2>
-      <p className="mt-1 text-xs text-muted-foreground">輸入起點同目的地，結合實時交通同天氣為你安排路線。<span className="text-primary">（智能建議暫停中，可先收藏常用行程）</span></p>
+      <p className="mt-1 text-xs text-muted-foreground">輸入起點同目的地，結合實時交通同天氣為你安排路線。</p>
 
       {favs.length > 0 && (
         <div className="mt-3">
@@ -141,11 +141,11 @@ function Planner() {
         </button>
         <button
           type="button"
-          disabled
-          title="智能建議暫停中"
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground opacity-50"
+          disabled={!canSave || m.isPending}
+          onClick={() => m.mutate()}
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
         >
-          {m.isPending ? <><Loader2 size={16} className="animate-spin" />規劃緊路線…</> : <>一鍵出發（暫停中）<ArrowRight size={16} /></>}
+          {m.isPending ? <><Loader2 size={16} className="animate-spin" />規劃緊路線…</> : <>一鍵出發<ArrowRight size={16} /></>}
         </button>
       </div>
 
