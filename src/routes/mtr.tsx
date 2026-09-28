@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { Clock, MapPin, ArrowRight, Wallet } from "lucide-react";
 import { getMtr } from "@/lib/hk.functions";
 import { getMtrFare } from "@/lib/fare.functions";
+import { FareSaverCard } from "@/components/FareSaverCard";
 
 function MtrFareBox({ from, to }: { from: string; to: string }) {
   const fn = useServerFn(getMtrFare);
@@ -170,6 +171,7 @@ function MtrPage() {
         </label>
       </div>
 
+      <FareSaverCard />
       <div className="mx-5 mt-3 rounded-2xl border bg-card p-4 text-sm">
         <p className="flex items-center gap-2 font-semibold"><Clock size={16} className="text-primary" />預計行程時間</p>
         {!route ? <p className="mt-1 text-muted-foreground">請選擇不同的起點和終點</p> : (
