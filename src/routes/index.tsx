@@ -157,7 +157,7 @@ function Planner() {
           {m.data.plans.map((p, i) => (
             <article key={i} className={`rounded-xl border p-3 ${i === 0 ? "border-primary/40 bg-primary/5" : ""}`}>
               <div className="flex items-baseline justify-between gap-2">
-                <h3 className="text-sm font-bold">{i === 0 ? "推薦・" : ""}{p.title}</h3>
+                <h3 className="text-sm font-bold">{i === 0 ? "最平最快・" : ""}{p.title}</h3>
                 <span className="flex shrink-0 items-center gap-1 text-sm font-semibold text-primary"><Clock size={13} />{p.totalMins} 分鐘</span>
               </div>
               <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
