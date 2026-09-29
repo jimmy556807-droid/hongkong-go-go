@@ -85,6 +85,8 @@ function Planner() {
   const { favs, save, remove } = useFavs();
   const plan = useServerFn(planTrip);
   const m = useMutation({ mutationFn: () => plan({ data: { from, to, prefs } }) });
+  // v5: 未撳之前 status 都係 "pending"，要用 submittedAt 分辨係咪真係規劃緊
+  const running = m.isPending && m.submittedAt > 0;
 
   const toggle = (p: string) => setPrefs((v) => (v.includes(p) ? v.filter((x) => x !== p) : [...v, p]));
   const canSave = from.trim() && to.trim();
@@ -141,11 +143,11 @@ function Planner() {
         </button>
         <button
           type="button"
-          disabled={!canSave || m.isPending}
+          disabled={!canSave || running}
           onClick={() => m.mutate()}
           className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
         >
-          {m.isPending ? <><Loader2 size={16} className="animate-spin" />規劃緊路線…</> : <>一鍵出發<ArrowRight size={16} /></>}
+          {running ? <><Loader2 size={16} className="animate-spin" />規劃緊路線…</> : <>一鍵出發<ArrowRight size={16} /></>}
         </button>
       </div>
 
@@ -157,7 +159,7 @@ function Planner() {
           {m.data.plans.map((p, i) => (
             <article key={i} className={`rounded-xl border p-3 ${i === 0 ? "border-primary/40 bg-primary/5" : ""}`}>
               <div className="flex items-baseline justify-between gap-2">
-                <h3 className="text-sm font-bold">{i === 0 ? "推薦・" : ""}{p.title}</h3>
+                <h3 className="text-sm font-bold">{i === 0 ? "最平最快・" : ""}{p.title}</h3>
                 <span className="flex shrink-0 items-center gap-1 text-sm font-semibold text-primary"><Clock size={13} />{p.totalMins} 分鐘</span>
               </div>
               <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
