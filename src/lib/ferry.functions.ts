@@ -24,7 +24,7 @@ export const getFerryRoutes = createServerFn({ method: "GET" }).handler(async ()
   if (!res.ok) throw new Error("無法讀取運輸署渡輪資料");
   const text = (await res.text()).replace(/^\uFEFF/, "");
   const json = JSON.parse(text) as {
-    features: { geometry: { coordinates: [number, number] }; properties: Record<string, any> }[];
+    features: { geometry: { coordinates: [number, number] }; properties: any }[];
   };
   const map = new Map<string, FerryRoute>();
   for (const f of json.features) {
