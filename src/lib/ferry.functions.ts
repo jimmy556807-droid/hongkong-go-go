@@ -14,7 +14,18 @@ export type FerryRoute = {
   link: string;
   updated: string;
   stops: FerryStop[];
+  note?: string;
+  bidirectional?: boolean;
 };
+
+function splitNote(raw: string): { label: string; note: string } {
+  const text = (raw ?? "").trim();
+  const sentence = text.match(/^(.*?)((?:單程|去程|前往|由).*收費.*)$/);
+  if (sentence && sentence[1]) return { label: sentence[1].trim(), note: sentence[2].replace(/^\(|\)$/g, "").trim() };
+  const paren = text.match(/^(.*?)\(([^()]*收費[^()]*)\)$/);
+  if (paren) return { label: paren[1].trim(), note: paren[2].trim() };
+  return { label: text, note: "" };
+}
 
 let cache: { at: number; data: FerryRoute[] } | null = null;
 
@@ -50,21 +61,22 @@ export const getFerryRoutes = createServerFn({ method: "GET" }).handler(async ()
     }
     r.stops.push({ seq: p.stopSeq, name: p.stopNameC, lng: f.geometry.coordinates[0], lat: f.geometry.coordinates[1] });
   }
-  const unique = new Map<string, FerryRoute>();
-  for (const route of map.values()) {
-    const stops = route.stops.sort((a, b) => a.seq - b.seq);
-    const signature = [
-      route.district,
-      route.name,
-      route.from,
-      route.to,
-      route.journeyTime,
-      route.fare,
-      stops.map((stop) => `${stop.seq}:${stop.name}:${stop.lat},${stop.lng}`).join("|") ,
-    ].join("|");
-    if (!unique.has(signature)) unique.set(signature, { ...route, stops });
+  const byRoute = new Map<number, FerryRoute>();
+  for (const route of [...map.values()].sort((a, b) => a.routeSeq - b.routeSeq)) {
+    route.stops.sort((a, b) => a.seq - b.seq);
+    const existing = byRoute.get(route.routeId);
+    if (existing) {
+      existing.bidirectional = true;
+      continue;
+    }
+    const { label: to, note } = splitNote(route.to);
+    const { label: from, note: fromNote } = splitNote(route.from);
+    byRoute.set(route.routeId, { ...route, from, to, note: [fromNote, note].filter(Boolean).join(" "), bidirectional: false });
   }
-  const data = [...unique.values()].sort((a, b) => a.routeId - b.routeId || a.routeSeq - b.routeSeq);
+  const order: Record<string, number> = { INNER: 0, OUTLYING: 1, KAITO: 2 };
+  const data = [...byRoute.values()].sort(
+    (a, b) => (order[a.district] ?? 9) - (order[b.district] ?? 9) || a.from.localeCompare(b.from, "zh-HK") || a.routeId - b.routeId,
+  );
   cache = { at: Date.now(), data };
   return data;
 });
