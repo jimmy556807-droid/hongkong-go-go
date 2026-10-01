@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeftRight, Search, Clock, MapPin, Navigation, X } from "lucide-react";
-import { getBus, getBusRoutes, getNearbyStops, getStopEta } from "@/lib/hk.functions";
+import { getBus, getBusRoutes, getNearbyRoutes, getStopEta } from "@/lib/hk.functions";
 import { getBusFare } from "@/lib/fare.functions";
 import { Wallet } from "lucide-react";
 
@@ -67,9 +67,9 @@ function BusPage() {
   const now = useNow();
   const fn = useServerFn(getBus);
   const routesFn = useServerFn(getBusRoutes);
-  const nearFn = useServerFn(getNearbyStops);
+  const nearFn = useServerFn(getNearbyRoutes);
   const routes = useQuery({ queryKey: ["busRoutes"], queryFn: routesFn, staleTime: 86400000 });
-  const nearby = useQuery({ queryKey: ["nearbyStops", pos?.lat, pos?.lng], queryFn: () => nearFn({ data: pos! }), enabled: !!pos && !route, staleTime: 300000 });
+  const nearby = useQuery({ queryKey: ["nearbyRoutes", pos?.lat, pos?.lng], queryFn: () => nearFn({ data: pos! }), enabled: !!pos && !route, refetchInterval: 30000 });
   const q = useQuery({ queryKey: ["bus", co, route, dir], queryFn: () => fn({ data: { route: route!, dir, co } }), refetchInterval: 30000, enabled: !!route });
 
   const matches = useMemo(() => {
