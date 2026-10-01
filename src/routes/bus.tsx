@@ -142,7 +142,7 @@ function BusPage() {
 
       {q.data?.dest && <p className="mx-5 mt-4 text-sm text-muted-foreground"><b className="mr-2 text-lg text-foreground">{q.data.route}</b><CoTag co={co} /> 往 {q.data.dest}</p>}
 
-      <div className="mx-5 mt-3 rounded-2xl border bg-card p-4">
+      {route && <div className="mx-5 mt-3 rounded-2xl border bg-card p-4">
         <p className="flex items-center gap-2 text-sm font-semibold"><Clock size={16} className="text-primary" />預計行程時間</p>
         {!trip ? (
           <p className="mt-1 text-sm text-muted-foreground">在下面點選「起點」及「終點」車站</p>
@@ -153,9 +153,9 @@ function BusPage() {
             {trip.arrive && <p className="text-muted-foreground">預計 {trip.arrive.toLocaleTimeString("zh-HK", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Hong_Kong" })} 到達</p>}
           </div>
         )}
-      </div>
+      </div>}
 
-      {q.data?.dest && <BusFareBox route={route} co={co} dir={dir} idx={from != null ? stops.findIndex((s) => s.seq === from) : null} name={stops.find((s) => s.seq === from)?.name} />}
+      {route && q.data?.dest && <BusFareBox route={route} co={co} dir={dir} idx={from != null ? stops.findIndex((s) => s.seq === from) : null} name={stops.find((s) => s.seq === from)?.name} />}
       {q.isLoading && <p className="mx-5 mt-6 text-muted-foreground">載入中…</p>}
       {q.isError && <p className="mx-5 mt-6 text-destructive">無法載入，請檢查路線</p>}
       {q.data && stops.length === 0 && <p className="mx-5 mt-6 text-muted-foreground">找不到此路線</p>}
@@ -165,7 +165,7 @@ function BusPage() {
           return (
             <li key={s.seq} className="relative pb-4 pl-5">
               <span className={`absolute -left-[7px] top-1.5 h-3 w-3 rounded-full border-2 border-primary ${inTrip ? "bg-primary" : "bg-background"}`} />
-              <button onClick={() => setStop({ id: s.id, name: s.name })} className="text-left font-medium underline-offset-2 hover:underline">{s.name}</button>
+              <button onClick={() => setStop({ id: s.id, name: s.name, co })} className="text-left font-medium underline-offset-2 hover:underline">{s.name}</button>
               <div className="flex items-center gap-3 text-sm">
                 {s.etas.length ? s.etas.map((e, i) => <Countdown key={i} at={e} now={now} />) : <span className="text-muted-foreground">暫無班次</span>}
               </div>
@@ -177,7 +177,7 @@ function BusPage() {
           );
         })}
       </ol>
-      {stop && <StopSheet stop={stop} co={co} route={route} onClose={() => setStop(null)} onPick={(r) => { setStop(null); setRoute(r); setFrom(null); setTo(null); }} />}
+      {stop && <StopSheet stop={stop} co={stop.co} route={stop.co === co ? route : null} onClose={() => setStop(null)} onPick={(r) => { setStop(null); setCo(stop.co); setRoute(r); setFrom(null); setTo(null); }} />}
     </div>
   );
 }
