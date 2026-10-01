@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeftRight, Search, Clock, MapPin, Navigation, X } from "lucide-react";
-import { getBus, getBusRoutes, getNearbyStops, getStopEta } from "@/lib/hk.functions";
+import { getBus, getBusRoutes, getNearbyRoutes, getStopEta } from "@/lib/hk.functions";
 import { getBusFare } from "@/lib/fare.functions";
 import { Wallet } from "lucide-react";
 
@@ -67,9 +67,9 @@ function BusPage() {
   const now = useNow();
   const fn = useServerFn(getBus);
   const routesFn = useServerFn(getBusRoutes);
-  const nearFn = useServerFn(getNearbyStops);
+  const nearFn = useServerFn(getNearbyRoutes);
   const routes = useQuery({ queryKey: ["busRoutes"], queryFn: routesFn, staleTime: 86400000 });
-  const nearby = useQuery({ queryKey: ["nearbyStops", pos?.lat, pos?.lng], queryFn: () => nearFn({ data: pos! }), enabled: !!pos && !route, staleTime: 300000 });
+  const nearby = useQuery({ queryKey: ["nearbyRoutes", pos?.lat, pos?.lng], queryFn: () => nearFn({ data: pos! }), enabled: !!pos && !route, refetchInterval: 30000 });
   const q = useQuery({ queryKey: ["bus", co, route, dir], queryFn: () => fn({ data: { route: route!, dir, co } }), refetchInterval: 30000, enabled: !!route });
 
   const matches = useMemo(() => {
@@ -116,28 +116,30 @@ function BusPage() {
 
       {!route && (
         <div className="mx-5 mt-4">
-          <p className="flex items-center gap-2 text-sm font-semibold"><Navigation size={16} className="text-primary" />附近巴士站</p>
+          <p className="flex items-center gap-2 text-sm font-semibold"><Navigation size={16} className="text-primary" />附近巴士路線</p>
           {!pos && <p className="mt-1 text-sm text-muted-foreground">正在取得你嘅位置…如未能定位，請用上面搜尋路線。</p>}
-          {pos && nearby.isLoading && <p className="mt-1 text-sm text-muted-foreground">搵緊附近車站…</p>}
-          {pos && nearby.data?.length === 0 && <p className="mt-1 text-sm text-muted-foreground">附近 800 米內搵唔到巴士站</p>}
+          {pos && nearby.isLoading && <p className="mt-1 text-sm text-muted-foreground">搵緊附近路線…</p>}
+          {pos && nearby.data?.length === 0 && <p className="mt-1 text-sm text-muted-foreground">附近 800 米內搵唔到巴士路線</p>}
           {!!nearby.data?.length && (
             <div className="mt-2 divide-y rounded-2xl border bg-card">
-              {nearby.data.map((s) => (
-                <button key={s.co + s.id} onClick={() => setStop({ id: s.id, name: s.name, co: s.co })} className="flex w-full items-center gap-3 px-4 py-3 text-left">
-                  <MapPin size={16} className="shrink-0 text-primary" />
-                  <span className="flex-1 text-sm font-medium">{s.name}</span>
-                  <CoTag co={s.co} />
-                  <span className="text-xs text-muted-foreground">{s.dist < 1000 ? `${Math.round(s.dist)} 米` : `${(s.dist / 1000).toFixed(1)} 公里`}</span>
+              {nearby.data.map((r) => (
+                <button key={r.route + r.dir} onClick={() => pick(r.route, r.dir, "KMB")} className="flex w-full items-center gap-3 px-4 py-3 text-left">
+                  <b className="w-12 shrink-0 text-primary">{r.route}</b>
+                  <span className="flex-1 text-sm">
+                    往 {r.dest}
+                    <span className="block text-xs text-muted-foreground"><MapPin size={10} className="mr-0.5 inline" />{r.stopName} · {r.dist < 1000 ? `${Math.round(r.dist)} 米` : `${(r.dist / 1000).toFixed(1)} 公里`}</span>
+                  </span>
+                  <span className="flex gap-2 text-sm">{r.etas.length ? r.etas.slice(0, 2).map((e, i) => <Countdown key={i} at={e} now={now} />) : <span className="text-xs text-muted-foreground">暫無班次</span>}</span>
                 </button>
               ))}
             </div>
           )}
-          <p className="mt-1 text-[11px] text-muted-foreground">城巴車站暫只顯示位置，實時班次請用搜尋。</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">附近路線根據最近車站嘅實時班次整理；城巴路線請用上面搜尋。</p>
         </div>
       )}
 
       {route && (
-        <button onClick={() => { setRoute(null); setFrom(null); setTo(null); }} className="mx-5 mt-3 text-sm text-primary underline">← 返回附近巴士站</button>
+        <button onClick={() => { setRoute(null); setFrom(null); setTo(null); }} className="mx-5 mt-3 text-sm text-primary underline">← 返回附近巴士路線</button>
       )}
 
       {q.data?.dest && <p className="mx-5 mt-4 text-sm text-muted-foreground"><b className="mr-2 text-lg text-foreground">{q.data.route}</b><CoTag co={co} /> 往 {q.data.dest}</p>}
