@@ -56,7 +56,7 @@ const journeyDestinations: Record<string, string> = {
 const xmlValue = (source: string, tag: string) => source.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, "i"))?.[1]?.replace(/<!\\[CDATA\\[|\\]\\]>/g, "").trim() ?? "";
 
 export const getJourneyTimes = createServerFn({ method: "GET" }).handler(async () => {
-  const response = await fetch("https://resource.data.one.gov.hk/td/jss/Journeytimev2.xml", { next: { revalidate: 120 } });
+  const response = await fetch("https://resource.data.one.gov.hk/td/jss/Journeytimev2.xml");
   if (!response.ok) throw new Error(`行車時間資料請求失敗 (${response.status})`);
   const xml = await response.text();
   const blocks = xml.split(/(?=<LOCATION_ID>)/i);
