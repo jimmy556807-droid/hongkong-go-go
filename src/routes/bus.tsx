@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useMemo, useState } from "react";
-import { ArrowLeftRight, Search, Clock, MapPin, X } from "lucide-react";
-import { getBus, getBusRoutes, getStopEta } from "@/lib/hk.functions";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowLeftRight, Search, Clock, MapPin, Navigation, X } from "lucide-react";
+import { getBus, getBusRoutes, getNearbyStops, getStopEta } from "@/lib/hk.functions";
 import { getBusFare } from "@/lib/fare.functions";
 import { Wallet } from "lucide-react";
 
@@ -50,17 +50,27 @@ const MIN_PER_STOP = 2.2;
 
 function BusPage() {
   const [input, setInput] = useState("");
-  const [route, setRoute] = useState("1A");
+  const [route, setRoute] = useState<string | null>(null);
   const [co, setCo] = useState<"KMB" | "CTB">("KMB");
   const [dir, setDir] = useState<"outbound" | "inbound">("outbound");
   const [from, setFrom] = useState<number | null>(null);
   const [to, setTo] = useState<number | null>(null);
-  const [stop, setStop] = useState<{ id: string; name: string } | null>(null);
+  const [stop, setStop] = useState<{ id: string; name: string; co: "KMB" | "CTB" } | null>(null);
+  const [pos, setPos] = useState<{ lat: number; lng: number } | null>(null);
+  useEffect(() => {
+    navigator.geolocation?.getCurrentPosition(
+      (p) => setPos({ lat: p.coords.latitude, lng: p.coords.longitude }),
+      () => {},
+      { timeout: 8000 },
+    );
+  }, []);
   const now = useNow();
   const fn = useServerFn(getBus);
   const routesFn = useServerFn(getBusRoutes);
+  const nearFn = useServerFn(getNearbyStops);
   const routes = useQuery({ queryKey: ["busRoutes"], queryFn: routesFn, staleTime: 86400000 });
-  const q = useQuery({ queryKey: ["bus", co, route, dir], queryFn: () => fn({ data: { route, dir, co } }), refetchInterval: 30000 });
+  const nearby = useQuery({ queryKey: ["nearbyStops", pos?.lat, pos?.lng], queryFn: () => nearFn({ data: pos! }), enabled: !!pos && !route, staleTime: 300000 });
+  const q = useQuery({ queryKey: ["bus", co, route, dir], queryFn: () => fn({ data: { route: route!, dir, co } }), refetchInterval: 30000, enabled: !!route });
 
   const matches = useMemo(() => {
     const t = input.trim().toUpperCase();
@@ -104,9 +114,35 @@ function BusPage() {
         )}
       </div>
 
+      {!route && (
+        <div className="mx-5 mt-4">
+          <p className="flex items-center gap-2 text-sm font-semibold"><Navigation size={16} className="text-primary" />附近巴士站</p>
+          {!pos && <p className="mt-1 text-sm text-muted-foreground">正在取得你嘅位置…如未能定位，請用上面搜尋路線。</p>}
+          {pos && nearby.isLoading && <p className="mt-1 text-sm text-muted-foreground">搵緊附近車站…</p>}
+          {pos && nearby.data?.length === 0 && <p className="mt-1 text-sm text-muted-foreground">附近 800 米內搵唔到巴士站</p>}
+          {!!nearby.data?.length && (
+            <div className="mt-2 divide-y rounded-2xl border bg-card">
+              {nearby.data.map((s) => (
+                <button key={s.co + s.id} onClick={() => setStop({ id: s.id, name: s.name, co: s.co })} className="flex w-full items-center gap-3 px-4 py-3 text-left">
+                  <MapPin size={16} className="shrink-0 text-primary" />
+                  <span className="flex-1 text-sm font-medium">{s.name}</span>
+                  <CoTag co={s.co} />
+                  <span className="text-xs text-muted-foreground">{s.dist < 1000 ? `${Math.round(s.dist)} 米` : `${(s.dist / 1000).toFixed(1)} 公里`}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          <p className="mt-1 text-[11px] text-muted-foreground">城巴車站暫只顯示位置，實時班次請用搜尋。</p>
+        </div>
+      )}
+
+      {route && (
+        <button onClick={() => { setRoute(null); setFrom(null); setTo(null); }} className="mx-5 mt-3 text-sm text-primary underline">← 返回附近巴士站</button>
+      )}
+
       {q.data?.dest && <p className="mx-5 mt-4 text-sm text-muted-foreground"><b className="mr-2 text-lg text-foreground">{q.data.route}</b><CoTag co={co} /> 往 {q.data.dest}</p>}
 
-      <div className="mx-5 mt-3 rounded-2xl border bg-card p-4">
+      {route && <div className="mx-5 mt-3 rounded-2xl border bg-card p-4">
         <p className="flex items-center gap-2 text-sm font-semibold"><Clock size={16} className="text-primary" />預計行程時間</p>
         {!trip ? (
           <p className="mt-1 text-sm text-muted-foreground">在下面點選「起點」及「終點」車站</p>
@@ -117,9 +153,9 @@ function BusPage() {
             {trip.arrive && <p className="text-muted-foreground">預計 {trip.arrive.toLocaleTimeString("zh-HK", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Hong_Kong" })} 到達</p>}
           </div>
         )}
-      </div>
+      </div>}
 
-      {q.data?.dest && <BusFareBox route={route} co={co} dir={dir} idx={from != null ? stops.findIndex((s) => s.seq === from) : null} name={stops.find((s) => s.seq === from)?.name} />}
+      {route && q.data?.dest && <BusFareBox route={route} co={co} dir={dir} idx={from != null ? stops.findIndex((s) => s.seq === from) : null} name={stops.find((s) => s.seq === from)?.name} />}
       {q.isLoading && <p className="mx-5 mt-6 text-muted-foreground">載入中…</p>}
       {q.isError && <p className="mx-5 mt-6 text-destructive">無法載入，請檢查路線</p>}
       {q.data && stops.length === 0 && <p className="mx-5 mt-6 text-muted-foreground">找不到此路線</p>}
@@ -129,7 +165,7 @@ function BusPage() {
           return (
             <li key={s.seq} className="relative pb-4 pl-5">
               <span className={`absolute -left-[7px] top-1.5 h-3 w-3 rounded-full border-2 border-primary ${inTrip ? "bg-primary" : "bg-background"}`} />
-              <button onClick={() => setStop({ id: s.id, name: s.name })} className="text-left font-medium underline-offset-2 hover:underline">{s.name}</button>
+              <button onClick={() => setStop({ id: s.id, name: s.name, co })} className="text-left font-medium underline-offset-2 hover:underline">{s.name}</button>
               <div className="flex items-center gap-3 text-sm">
                 {s.etas.length ? s.etas.map((e, i) => <Countdown key={i} at={e} now={now} />) : <span className="text-muted-foreground">暫無班次</span>}
               </div>
@@ -141,7 +177,7 @@ function BusPage() {
           );
         })}
       </ol>
-      {stop && <StopSheet stop={stop} co={co} route={route} onClose={() => setStop(null)} onPick={(r) => { setStop(null); setRoute(r); setFrom(null); setTo(null); }} />}
+      {stop && <StopSheet stop={stop} co={stop.co} route={stop.co === co ? route : null} onClose={() => setStop(null)} onPick={(r) => { setStop(null); setCo(stop.co); setRoute(r); setFrom(null); setTo(null); }} />}
     </div>
   );
 }
@@ -150,10 +186,11 @@ function CoTag({ co }: { co: "KMB" | "CTB" }) {
   return <span className={`mr-1 rounded px-1.5 py-0.5 text-[10px] font-bold ${co === "KMB" ? "bg-destructive/15 text-destructive" : "bg-accent text-accent-foreground"}`}>{co === "KMB" ? "九巴" : "城巴"}</span>;
 }
 
-function StopSheet({ stop, co, route, onClose, onPick }: { stop: { id: string; name: string }; co: "KMB" | "CTB"; route: string; onClose: () => void; onPick: (r: string) => void }) {
+function StopSheet({ stop, co, route, onClose, onPick }: { stop: { id: string; name: string }; co: "KMB" | "CTB"; route: string | null; onClose: () => void; onPick: (r: string) => void }) {
   const fn = useServerFn(getStopEta);
   const now = useNow();
-  const q = useQuery({ queryKey: ["stopEta", co, stop.id, route], queryFn: () => fn({ data: { stop: stop.id, co, route } }), refetchInterval: 30000 });
+  const canEta = co === "KMB" || !!route;
+  const q = useQuery({ queryKey: ["stopEta", co, stop.id, route], queryFn: () => fn({ data: { stop: stop.id, co, route: route ?? undefined } }), refetchInterval: 30000, enabled: canEta });
   return (
     <div className="fixed inset-0 z-[60] flex items-end bg-foreground/40" onClick={onClose}>
       <div className="mx-auto max-h-[75vh] w-full max-w-md overflow-auto rounded-t-3xl bg-background p-5 pb-8" onClick={(e) => e.stopPropagation()}>
@@ -161,8 +198,9 @@ function StopSheet({ stop, co, route, onClose, onPick }: { stop: { id: string; n
           <h2 className="flex items-center gap-2 text-lg font-bold"><MapPin size={18} className="text-primary" />{stop.name}</h2>
           <button aria-label="關閉" onClick={onClose}><X /></button>
         </div>
-        <p className="text-xs text-muted-foreground">站點編號 {stop.id.slice(0, 8)}… · {co === "KMB" ? "所有經過路線" : `城巴 ${route} 到站`}</p>
-        {q.isLoading && <p className="mt-4 text-muted-foreground">載入中…</p>}
+        <p className="text-xs text-muted-foreground">站點編號 {stop.id.slice(0, 8)}… · {co === "KMB" ? "所有經過路線" : route ? `城巴 ${route} 到站` : "城巴車站"}</p>
+        {!canEta && <p className="mt-4 text-sm text-muted-foreground">城巴車站暫未能一次過顯示所有路線班次，請用上面搜尋欄揀路線查看。</p>}
+        {canEta && q.isLoading && <p className="mt-4 text-muted-foreground">載入中…</p>}
         <div className="mt-3 divide-y rounded-2xl border bg-card">
           {q.data?.map((r) => (
             <button key={r.route + r.dest} onClick={() => onPick(r.route)} className="flex w-full items-center gap-3 px-4 py-3 text-left">
