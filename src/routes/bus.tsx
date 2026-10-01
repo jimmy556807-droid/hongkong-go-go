@@ -186,10 +186,11 @@ function CoTag({ co }: { co: "KMB" | "CTB" }) {
   return <span className={`mr-1 rounded px-1.5 py-0.5 text-[10px] font-bold ${co === "KMB" ? "bg-destructive/15 text-destructive" : "bg-accent text-accent-foreground"}`}>{co === "KMB" ? "九巴" : "城巴"}</span>;
 }
 
-function StopSheet({ stop, co, route, onClose, onPick }: { stop: { id: string; name: string }; co: "KMB" | "CTB"; route: string; onClose: () => void; onPick: (r: string) => void }) {
+function StopSheet({ stop, co, route, onClose, onPick }: { stop: { id: string; name: string }; co: "KMB" | "CTB"; route: string | null; onClose: () => void; onPick: (r: string) => void }) {
   const fn = useServerFn(getStopEta);
   const now = useNow();
-  const q = useQuery({ queryKey: ["stopEta", co, stop.id, route], queryFn: () => fn({ data: { stop: stop.id, co, route } }), refetchInterval: 30000 });
+  const canEta = co === "KMB" || !!route;
+  const q = useQuery({ queryKey: ["stopEta", co, stop.id, route], queryFn: () => fn({ data: { stop: stop.id, co, route: route ?? undefined } }), refetchInterval: 30000, enabled: canEta });
   return (
     <div className="fixed inset-0 z-[60] flex items-end bg-foreground/40" onClick={onClose}>
       <div className="mx-auto max-h-[75vh] w-full max-w-md overflow-auto rounded-t-3xl bg-background p-5 pb-8" onClick={(e) => e.stopPropagation()}>
@@ -197,8 +198,9 @@ function StopSheet({ stop, co, route, onClose, onPick }: { stop: { id: string; n
           <h2 className="flex items-center gap-2 text-lg font-bold"><MapPin size={18} className="text-primary" />{stop.name}</h2>
           <button aria-label="關閉" onClick={onClose}><X /></button>
         </div>
-        <p className="text-xs text-muted-foreground">站點編號 {stop.id.slice(0, 8)}… · {co === "KMB" ? "所有經過路線" : `城巴 ${route} 到站`}</p>
-        {q.isLoading && <p className="mt-4 text-muted-foreground">載入中…</p>}
+        <p className="text-xs text-muted-foreground">站點編號 {stop.id.slice(0, 8)}… · {co === "KMB" ? "所有經過路線" : route ? `城巴 ${route} 到站` : "城巴車站"}</p>
+        {!canEta && <p className="mt-4 text-sm text-muted-foreground">城巴車站暫未能一次過顯示所有路線班次，請用上面搜尋欄揀路線查看。</p>}
+        {canEta && q.isLoading && <p className="mt-4 text-muted-foreground">載入中…</p>}
         <div className="mt-3 divide-y rounded-2xl border bg-card">
           {q.data?.map((r) => (
             <button key={r.route + r.dest} onClick={() => onPick(r.route)} className="flex w-full items-center gap-3 px-4 py-3 text-left">
