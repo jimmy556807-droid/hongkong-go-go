@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
 
 export type FerryStop = { seq: number; name: string; lat: number; lng: number };
 export type FerryRoute = {
@@ -26,6 +27,81 @@ function splitNote(raw: string): { label: string; note: string } {
   if (paren) return { label: paren[1].trim(), note: paren[2].trim() };
   return { label: text, note: "" };
 }
+
+export type FerryTimetableTable = { title: string; headers: string[]; rows: string[][] };
+export type FerryTimetable = { tables: FerryTimetableTable[]; notes: string[]; source: string };
+
+const TD_PAGE = /^https:\/\/www\.td\.gov\.hk\/tc\/transport_in_hong_kong\/public_transport\/ferries\/(?:kaito_services_map\/)?service_details\/index\.html$/;
+const pageCache = new Map<string, { at: number; html: string }>();
+
+function decode(s: string) {
+  return s
+    .replace(/<br\s*\/?>/gi, " ")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&mdash;/g, "—")
+    .replace(/&ndash;/g, "–")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function parseTable(html: string): FerryTimetableTable | null {
+  const t: FerryTimetableTable = { title: "", headers: [], rows: [] };
+  for (const tr of html.match(/<tr[\s\S]*?<\/tr>/gi) ?? []) {
+    const cells = [...tr.matchAll(/<t([hd])([^>]*)>([\s\S]*?)<\/t[hd]>/gi)].map((m) => ({ attrs: m[2] ?? "", text: decode(m[3] ?? "") }));
+    if (!cells.length) continue;
+    if (cells.some((c) => /TLevel1/.test(c.attrs)) || (cells.length === 1 && /colspan/i.test(cells[0]?.attrs ?? "") && !t.rows.length)) {
+      const text = cells.map((c) => c.text).filter(Boolean).join(" ");
+      if (!t.title) t.title = text;
+      else t.rows.push([text]);
+    } else if (cells.some((c) => /TLevel2/.test(c.attrs))) {
+      t.headers = cells.map((c) => c.text);
+    } else if (cells.some((c) => c.text)) {
+      t.rows.push(cells.map((c) => c.text));
+    }
+  }
+  return t.rows.length ? t : null;
+}
+
+export const getFerryTimetable = createServerFn({ method: "GET" })
+  .inputValidator((d: unknown) => z.object({ link: z.string().max(300) }).parse(d))
+  .handler(async ({ data }): Promise<FerryTimetable> => {
+    const [page = "", anchor = ""] = data.link.split("#");
+    if (!TD_PAGE.test(page) || !anchor || !/^[a-z]\d{1,3}$/.test(anchor)) return { tables: [], notes: [], source: data.link };
+    let cached = pageCache.get(page);
+    if (!cached || Date.now() - cached.at > 6 * 3600_000) {
+      const res = await fetch(page);
+      if (!res.ok) throw new Error("無法讀取運輸署班次資料");
+      cached = { at: Date.now(), html: (await res.text()).replace(/<!--[\s\S]*?-->/g, "") };
+      pageCache.set(page, cached);
+    }
+    const parts = cached.html.split(/<a\s+name="([a-z]\d+)"\s*>\s*<\/a>/i);
+    let section = "";
+    for (let i = 1; i < parts.length; i += 2) if (parts[i] === anchor) section += parts[i + 1];
+    const start = section.search(/班次|時間表/);
+    if (start < 0) return { tables: [], notes: [], source: data.link };
+    let body = section.slice(start);
+    const end = body.search(/船隻編號|<p class="HLevel1"/);
+    if (end > 0) body = body.slice(0, end);
+    const tables: FerryTimetableTable[] = [];
+    body = body.replace(/<table[^>]*content_table1[^>]*>[\s\S]*?<\/table>/gi, (m) => {
+      const t = parseTable(m);
+      if (t) tables.push(t);
+      return "\n";
+    });
+    const notes = body
+      .replace(/<(?:br|\/p|\/li|\/tr|\/td|\/th|\/div|\/h\d)[^>]*>/gi, "\n")
+      .split("\n")
+      .map(decode)
+      .filter((l) => l && !/^(班次|時間表)[:：]?$/.test(l))
+      .slice(0, 60);
+    return { tables, notes, source: data.link };
+  });
 
 let cache: { at: number; data: FerryRoute[] } | null = null;
 

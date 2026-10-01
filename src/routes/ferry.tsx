@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
-import { Ship, Search, Clock, MapPin, ExternalLink, Wallet } from "lucide-react";
+import { Ship, Search, Clock, MapPin, Wallet } from "lucide-react";
 import { PageHeader } from "@/components/BottomNav";
+import { FerryTimetableDialog } from "@/components/FerryTimetableDialog";
 import { getFerryRoutes } from "@/lib/ferry.functions";
 
 const ferryQuery = queryOptions({ queryKey: ["ferry-routes"], queryFn: () => getFerryRoutes(), staleTime: 3600_000 });
@@ -90,11 +91,7 @@ function FerryPage() {
                     ))}
                   </ol>
                 </div>
-                {r.link && (
-                  <a href={r.link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary">
-                    <ExternalLink size={14} />運輸署班次及詳情
-                  </a>
-                )}
+                {r.link && <FerryTimetableDialog link={r.link} title={`${r.from} ${r.bidirectional ? "⇄" : "→"} ${r.to}`} />}
                 <p className="text-xs text-muted-foreground">資料更新：{r.updated}</p>
               </div>
             )}
