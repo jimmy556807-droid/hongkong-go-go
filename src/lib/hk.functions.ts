@@ -168,6 +168,31 @@ export const getStopEta = createServerFn({ method: "GET" })
     return [...m.values()].sort((a, b) => a.route.localeCompare(b.route, "en", { numeric: true }));
   });
 
+const distM = (lat1: number, lng1: number, lat2: number, lng2: number) => {
+  const R = 6371000, t = (d: number) => (d * Math.PI) / 180;
+  const a = Math.sin(t(lat2 - lat1) / 2) ** 2 + Math.cos(t(lat1)) * Math.cos(t(lat2)) * Math.sin(t(lng2 - lng1) / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+};
+
+export const getNearbyStops = createServerFn({ method: "GET" })
+  .inputValidator((d) => z.object({ lat: z.number(), lng: z.number() }).parse(d))
+  .handler(async ({ data }) => {
+    const [k, c] = await Promise.all([j(`${KMB}/stop`).catch(() => null), j(`${CTB}/stop`).catch(() => null)]);
+    type NS = { id: string; name: string; co: "KMB" | "CTB"; dist: number; lat: number; lng: number };
+    const out: NS[] = [];
+    for (const s of k?.data ?? []) {
+      const lat = Number(s.lat), lng = Number(s.long);
+      if (!lat || !lng) continue;
+      out.push({ id: String(s.stop), name: String(s.name_tc), co: "KMB", dist: distM(data.lat, data.lng, lat, lng), lat, lng });
+    }
+    for (const s of c?.data ?? []) {
+      const lat = Number(s.lat), lng = Number(s.long);
+      if (!lat || !lng) continue;
+      out.push({ id: String(s.stop), name: String(s.name_tc), co: "CTB", dist: distM(data.lat, data.lng, lat, lng), lat, lng });
+    }
+    return out.filter((s) => s.dist <= 800).sort((a, b) => a.dist - b.dist).slice(0, 12);
+  });
+
 export const getMtr = createServerFn({ method: "GET" })
   .inputValidator((d) => z.object({ line: z.string().max(4), sta: z.string().max(4) }).parse(d))
   .handler(async ({ data }) => {
