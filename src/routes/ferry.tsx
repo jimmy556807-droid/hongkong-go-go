@@ -79,6 +79,20 @@ function FerryPage() {
                 <p className="flex items-center gap-1"><Wallet size={14} className="text-primary" />成人全程車資 {r.fare ? `$${r.fare.toFixed(1)}` : "未提供"}</p>
                 {r.journeyTime > 0 && <p className="flex items-center gap-1"><Clock size={14} className="text-primary" />航程約 {r.journeyTime} 分鐘</p>}
                 {r.note && <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">{r.note}</p>}
+                {r.district === "KAITO" && (r.operator || r.schedule || r.fareDetail) && (
+                  <div className="rounded-xl border border-primary/15 bg-primary/5 px-3 py-3 text-xs">
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <p className="font-semibold text-foreground">街渡服務詳情 {r.serviceCode ? `· ${r.serviceCode}` : ""}</p>
+                      <span className="text-muted-foreground">運輸署資料</span>
+                    </div>
+                    <div className="grid gap-1 text-muted-foreground">
+                      {r.operator && <p>營辦商：{r.operator}</p>}
+                      {r.phone && <p>查詢電話：{r.phone}</p>}
+                      {r.schedule && <p>服務時間：{r.schedule}</p>}
+                      {r.fareDetail && <p>收費及備註：{r.fareDetail}</p>}
+                    </div>
+                  </div>
+                )}
                 <div>
                   <p className="mb-1 font-semibold">停靠碼頭</p>
                   <ol className="space-y-1">
