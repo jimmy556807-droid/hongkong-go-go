@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
-import { Ship, Search, Clock, MapPin, ExternalLink, Wallet } from "lucide-react";
+import { Ship, Search, Clock, MapPin, Wallet } from "lucide-react";
 import { PageHeader } from "@/components/BottomNav";
+import { FerryTimetableDialog } from "@/components/FerryTimetableDialog";
 import { getFerryRoutes } from "@/lib/ferry.functions";
 
 const ferryQuery = queryOptions({ queryKey: ["ferry-routes"], queryFn: () => getFerryRoutes(), staleTime: 3600_000 });
@@ -25,7 +26,7 @@ export const Route = createFileRoute("/ferry")({
 const TABS = [
   { k: "ALL", l: "全部" },
   { k: "INNER", l: "港內線" },
-  { k: "OUTLYING", l: "離島線" },
+  { k: "OUTLYING", l: "港外線" },
   { k: "KAITO", l: "街渡" },
 ];
 
@@ -51,15 +52,24 @@ function FerryPage() {
           </button>
         ))}
       </div>
-      <div className="mx-5 mt-3 space-y-3 pb-4">
-        {list.map((r) => (
+      <div className="mx-5 mt-3 flex flex-col gap-5 pb-4">
+        {TABS.slice(1).map((group) => {
+          const items = list.filter((r) => r.district === group.k);
+          if (!items.length) return null;
+          return (
+            <section key={group.k} className="flex flex-col gap-3" aria-labelledby={`ferry-${group.k}`}>
+              <h2 id={`ferry-${group.k}`} className="flex items-baseline justify-between text-sm font-semibold">
+                <span>{group.l}</span>
+                <span className="text-xs font-normal text-muted-foreground">{items.length} 條航線</span>
+              </h2>
+              {items.map((r) => (
           <div key={r.key} className="rounded-2xl border bg-card">
             <button onClick={() => setOpen(open === r.key ? null : r.key)} className="flex w-full items-center gap-4 p-4 text-left">
               <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"><Ship size={20} /></span>
               <div className="flex-1">
-                <p className="font-semibold">{r.from} → {r.to}</p>
+                <p className="font-semibold">{r.from} {r.bidirectional ? "⇄" : "→"} {r.to}</p>
                 <p className="text-xs text-muted-foreground">
-                  {TABS.find((t) => t.k === r.district)?.l ?? r.district} · {r.stops.length} 個碼頭{r.journeyTime ? ` · 航程約 ${r.journeyTime} 分鐘` : ""}
+                  {r.stops.length} 個碼頭{r.journeyTime ? ` · 航程約 ${r.journeyTime} 分鐘` : ""}{r.bidirectional ? " · 雙向" : ""}
                 </p>
               </div>
               <span className="text-right text-sm font-semibold text-primary">{r.fare ? `$${r.fare.toFixed(1)}` : "—"}</span>
@@ -68,6 +78,21 @@ function FerryPage() {
               <div className="space-y-2 border-t px-4 py-3 text-sm">
                 <p className="flex items-center gap-1"><Wallet size={14} className="text-primary" />成人全程車資 {r.fare ? `$${r.fare.toFixed(1)}` : "未提供"}</p>
                 {r.journeyTime > 0 && <p className="flex items-center gap-1"><Clock size={14} className="text-primary" />航程約 {r.journeyTime} 分鐘</p>}
+                {r.note && <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">{r.note}</p>}
+                {r.district === "KAITO" && (r.operator || r.schedule || r.fareDetail) && (
+                  <div className="rounded-xl border border-primary/15 bg-primary/5 px-3 py-3 text-xs">
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <p className="font-semibold text-foreground">街渡服務詳情 {r.serviceCode ? `· ${r.serviceCode}` : ""}</p>
+                      <span className="text-muted-foreground">運輸署資料</span>
+                    </div>
+                    <div className="grid gap-1 text-muted-foreground">
+                      {r.operator && <p>營辦商：{r.operator}</p>}
+                      {r.phone && <p>查詢電話：{r.phone}</p>}
+                      {r.schedule && <p>服務時間：{r.schedule}</p>}
+                      {r.fareDetail && <p>收費及備註：{r.fareDetail}</p>}
+                    </div>
+                  </div>
+                )}
                 <div>
                   <p className="mb-1 font-semibold">停靠碼頭</p>
                   <ol className="space-y-1">
@@ -80,16 +105,15 @@ function FerryPage() {
                     ))}
                   </ol>
                 </div>
-                {r.link && (
-                  <a href={r.link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary">
-                    <ExternalLink size={14} />運輸署班次及詳情
-                  </a>
-                )}
+                {r.link && <FerryTimetableDialog link={r.link} title={`${r.from} ${r.bidirectional ? "⇄" : "→"} ${r.to}`} />}
                 <p className="text-xs text-muted-foreground">資料更新：{r.updated}</p>
               </div>
             )}
           </div>
-        ))}
+              ))}
+            </section>
+          );
+        })}
         {!list.length && <p className="text-sm text-muted-foreground">找不到相關航線</p>}
       </div>
     </div>
