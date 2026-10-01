@@ -114,6 +114,32 @@ function BusPage() {
         )}
       </div>
 
+      {!route && (
+        <div className="mx-5 mt-4">
+          <p className="flex items-center gap-2 text-sm font-semibold"><Navigation size={16} className="text-primary" />附近巴士站</p>
+          {!pos && <p className="mt-1 text-sm text-muted-foreground">正在取得你嘅位置…如未能定位，請用上面搜尋路線。</p>}
+          {pos && nearby.isLoading && <p className="mt-1 text-sm text-muted-foreground">搵緊附近車站…</p>}
+          {pos && nearby.data?.length === 0 && <p className="mt-1 text-sm text-muted-foreground">附近 800 米內搵唔到巴士站</p>}
+          {!!nearby.data?.length && (
+            <div className="mt-2 divide-y rounded-2xl border bg-card">
+              {nearby.data.map((s) => (
+                <button key={s.co + s.id} onClick={() => setStop({ id: s.id, name: s.name, co: s.co })} className="flex w-full items-center gap-3 px-4 py-3 text-left">
+                  <MapPin size={16} className="shrink-0 text-primary" />
+                  <span className="flex-1 text-sm font-medium">{s.name}</span>
+                  <CoTag co={s.co} />
+                  <span className="text-xs text-muted-foreground">{s.dist < 1000 ? `${Math.round(s.dist)} 米` : `${(s.dist / 1000).toFixed(1)} 公里`}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          <p className="mt-1 text-[11px] text-muted-foreground">城巴車站暫只顯示位置，實時班次請用搜尋。</p>
+        </div>
+      )}
+
+      {route && (
+        <button onClick={() => { setRoute(null); setFrom(null); setTo(null); }} className="mx-5 mt-3 text-sm text-primary underline">← 返回附近巴士站</button>
+      )}
+
       {q.data?.dest && <p className="mx-5 mt-4 text-sm text-muted-foreground"><b className="mr-2 text-lg text-foreground">{q.data.route}</b><CoTag co={co} /> 往 {q.data.dest}</p>}
 
       <div className="mx-5 mt-3 rounded-2xl border bg-card p-4">
