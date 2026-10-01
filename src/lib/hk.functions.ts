@@ -193,6 +193,44 @@ export const getNearbyStops = createServerFn({ method: "GET" })
     return out.filter((s) => s.dist <= 800).sort((a, b) => a.dist - b.dist).slice(0, 12);
   });
 
+export const getNearbyRoutes = createServerFn({ method: "GET" })
+  .inputValidator((d) => z.object({ lat: z.number(), lng: z.number() }).parse(d))
+  .handler(async ({ data }) => {
+    const k = await j(`${KMB}/stop`).catch(() => null);
+    type NS = { id: string; name: string; dist: number };
+    const stops: NS[] = [];
+    for (const s of k?.data ?? []) {
+      const lat = Number(s.lat), lng = Number(s.long);
+      if (!lat || !lng) continue;
+      const dist = distM(data.lat, data.lng, lat, lng);
+      if (dist <= 800) stops.push({ id: String(s.stop), name: String(s.name_tc), dist });
+    }
+    stops.sort((a, b) => a.dist - b.dist);
+    const near = stops.slice(0, 8);
+    const etas = await Promise.all(near.map((s) => j(`${KMB}/stop-eta/${s.id}`).catch(() => null)));
+    const m = new Map<string, { route: string; dir: "outbound" | "inbound"; dest: string; stopName: string; dist: number; etas: string[] }>();
+    etas.forEach((x, i) => {
+      for (const e of x?.data ?? []) {
+        const key = String(e.route) + String(e.dir);
+        const cur = m.get(key);
+        const stop = near[i]!;
+        if (!cur || stop.dist < cur.dist) {
+          m.set(key, {
+            route: String(e.route),
+            dir: e.dir === "I" ? "inbound" : "outbound",
+            dest: String(e.dest_tc ?? ""),
+            stopName: stop.name,
+            dist: stop.dist,
+            etas: cur?.etas ?? [],
+          });
+        }
+        const v = m.get(key)!;
+        if (e.eta && stop.id === near[i]!.id && v.stopName === stop.name && v.etas.length < 3) v.etas.push(String(e.eta));
+      }
+    });
+    return [...m.values()].sort((a, b) => a.route.localeCompare(b.route, "en", { numeric: true }));
+  });
+
 export const getMtr = createServerFn({ method: "GET" })
   .inputValidator((d) => z.object({ line: z.string().max(4), sta: z.string().max(4) }).parse(d))
   .handler(async ({ data }) => {
