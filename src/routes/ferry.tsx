@@ -25,7 +25,7 @@ export const Route = createFileRoute("/ferry")({
 const TABS = [
   { k: "ALL", l: "全部" },
   { k: "INNER", l: "港內線" },
-  { k: "OUTLYING", l: "離島線" },
+  { k: "OUTLYING", l: "港外線" },
   { k: "KAITO", l: "街渡" },
 ];
 
