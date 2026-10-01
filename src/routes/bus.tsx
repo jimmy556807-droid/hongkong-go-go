@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useMemo, useState } from "react";
-import { ArrowLeftRight, Search, Clock, MapPin, X } from "lucide-react";
-import { getBus, getBusRoutes, getStopEta } from "@/lib/hk.functions";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowLeftRight, Search, Clock, MapPin, Navigation, X } from "lucide-react";
+import { getBus, getBusRoutes, getNearbyStops, getStopEta } from "@/lib/hk.functions";
 import { getBusFare } from "@/lib/fare.functions";
 import { Wallet } from "lucide-react";
 
@@ -50,17 +50,27 @@ const MIN_PER_STOP = 2.2;
 
 function BusPage() {
   const [input, setInput] = useState("");
-  const [route, setRoute] = useState("1A");
+  const [route, setRoute] = useState<string | null>(null);
   const [co, setCo] = useState<"KMB" | "CTB">("KMB");
   const [dir, setDir] = useState<"outbound" | "inbound">("outbound");
   const [from, setFrom] = useState<number | null>(null);
   const [to, setTo] = useState<number | null>(null);
-  const [stop, setStop] = useState<{ id: string; name: string } | null>(null);
+  const [stop, setStop] = useState<{ id: string; name: string; co: "KMB" | "CTB" } | null>(null);
+  const [pos, setPos] = useState<{ lat: number; lng: number } | null>(null);
+  useEffect(() => {
+    navigator.geolocation?.getCurrentPosition(
+      (p) => setPos({ lat: p.coords.latitude, lng: p.coords.longitude }),
+      () => {},
+      { timeout: 8000 },
+    );
+  }, []);
   const now = useNow();
   const fn = useServerFn(getBus);
   const routesFn = useServerFn(getBusRoutes);
+  const nearFn = useServerFn(getNearbyStops);
   const routes = useQuery({ queryKey: ["busRoutes"], queryFn: routesFn, staleTime: 86400000 });
-  const q = useQuery({ queryKey: ["bus", co, route, dir], queryFn: () => fn({ data: { route, dir, co } }), refetchInterval: 30000 });
+  const nearby = useQuery({ queryKey: ["nearbyStops", pos?.lat, pos?.lng], queryFn: () => nearFn({ data: pos! }), enabled: !!pos && !route, staleTime: 300000 });
+  const q = useQuery({ queryKey: ["bus", co, route, dir], queryFn: () => fn({ data: { route: route!, dir, co } }), refetchInterval: 30000, enabled: !!route });
 
   const matches = useMemo(() => {
     const t = input.trim().toUpperCase();
