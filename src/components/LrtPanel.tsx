@@ -19,6 +19,7 @@ export function LrtPanel() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [sta, setSta] = useState("");
+  const [stationsExpanded, setStationsExpanded] = useState(false);
 
   const net = useQuery({ queryKey: ["lrt-net"], queryFn: () => netFn(), staleTime: 3600e3 });
   const routes = net.data ?? [];
@@ -168,16 +169,26 @@ export function LrtPanel() {
           </div>
           <a className="mt-3 inline-flex items-center gap-1 text-sm text-primary" target="_blank" rel="noreferrer"
             href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent("輕鐵 " + staInfo.name + "站")}`}><MapPin size={14} />喺地圖睇</a>
-          <p className="mt-4 border-t pt-3 text-sm font-semibold">輕鐵站點</p>
-          <ol className="mt-1">
-            {stops.map((s, i) => (
-              <li key={s.id} className="flex items-center gap-3 py-1.5 text-sm">
-                <span className="h-3 w-3 rounded-full border-2" style={{ borderColor: LRT_COLOR, background: s.id === staId ? LRT_COLOR : "transparent" }} />
-                <button className="text-left hover:underline" onClick={() => setSta(s.id)}>{s.name}</button>
-                <span className="ml-auto text-xs text-muted-foreground">{s.code}</span>
-              </li>
-            ))}
-          </ol>
+          <button
+            type="button"
+            aria-expanded={stationsExpanded}
+            onClick={() => setStationsExpanded((expanded) => !expanded)}
+            className="mt-4 flex w-full items-center justify-between border-t pt-3 text-left text-sm font-semibold"
+          >
+            <span>輕鐵站點</span>
+            <span aria-hidden="true" className="text-lg leading-none text-muted-foreground">{stationsExpanded ? "−" : "+"}</span>
+          </button>
+          {stationsExpanded && (
+            <ol className="mt-1">
+              {stops.map((s) => (
+                <li key={s.id} className="flex items-center gap-3 py-1.5 text-sm">
+                  <span className="h-3 w-3 rounded-full border-2" style={{ borderColor: LRT_COLOR, background: s.id === staId ? LRT_COLOR : "transparent" }} />
+                  <button className="text-left hover:underline" onClick={() => setSta(s.id)}>{s.name}</button>
+                  <span className="ml-auto text-xs text-muted-foreground">{s.code}</span>
+                </li>
+              ))}
+            </ol>
+          )}
         </div>
       )}
       {tab !== "route" && <Trains />}
