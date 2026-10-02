@@ -62,22 +62,26 @@ export function LrtPanel() {
 
   const tripPlan = useMemo(() => {
     if (tab !== "route" || !from || !to || from === to) return null;
+
     type State = { station: string; routeKey: string; minutes: number; previous?: State; action?: "ride" | "transfer" };
-    const queue: State[] = routes.flatMap((route) => route.stops.some((s) => s.id === from)
-      ? [{ station: from, routeKey: `${route.route}-${route.dir}`, minutes: 0 }]
+    const stationName = new Map<string, string>();
+    for (const route of routes) for (const stop of route.stops) stationName.set(stop.id, stop.name);
+    const sameStation = (a: string, b: string) => a === b || stationName.get(a) === stationName.get(b);
+    const queue: State[] = routes.flatMap((route) => route.stops.some((stop) => sameStation(stop.id, from))
+      ? [{ station: route.stops.find((stop) => sameStation(stop.id, from))!.id, routeKey: `${route.route}-${route.dir}`, minutes: 0 }]
       : []);
     const best = new Map<string, number>();
     queue.forEach((state) => best.set(`${state.station}|${state.routeKey}`, 0));
     let result: State | undefined;
+
     while (queue.length && !result) {
       queue.sort((a, b) => a.minutes - b.minutes);
       const state = queue.shift()!;
-      if (state.station === to) { result = state; break; }
-      const route = routes.find((r) => `${r.route}-${r.dir}` === state.routeKey);
+      if (sameStation(state.station, to)) { result = state; break; }
+      const route = routes.find((candidate) => `${candidate.route}-${candidate.dir}` === state.routeKey);
       if (!route) continue;
-      const index = route.stops.findIndex((s) => s.id === state.station);
-      for (const nextIndex of [index - 1, index + 1]) {
-        const next = route.stops[nextIndex];
+      const index = route.stops.findIndex((stop) => sameStation(stop.id, state.station));
+      for (const next of [route.stops[index - 1], route.stops[index + 1]]) {
         if (!next) continue;
         const minutes = state.minutes + getMinutesPerStop(route.route);
         const key = `${next.id}|${state.routeKey}`;
@@ -86,14 +90,17 @@ export function LrtPanel() {
           queue.push({ station: next.id, routeKey: state.routeKey, minutes, previous: state, action: "ride" });
         }
       }
+      const currentName = stationName.get(state.station);
       for (const other of routes) {
         const otherKey = `${other.route}-${other.dir}`;
-        if (otherKey === state.routeKey || !other.stops.some((s) => s.id === state.station)) continue;
+        if (otherKey === state.routeKey) continue;
+        const transferStop = other.stops.find((stop) => sameStation(stop.id, state.station) || stop.name === currentName);
+        if (!transferStop) continue;
         const minutes = state.minutes + 4;
-        const key = `${state.station}|${otherKey}`;
+        const key = `${transferStop.id}|${otherKey}`;
         if (minutes < (best.get(key) ?? Infinity)) {
           best.set(key, minutes);
-          queue.push({ station: state.station, routeKey: otherKey, minutes, previous: state, action: "transfer" });
+          queue.push({ station: transferStop.id, routeKey: otherKey, minutes, previous: state, action: "transfer" });
         }
       }
     }
@@ -105,7 +112,7 @@ export function LrtPanel() {
       const state = states[i];
       const previous = states[i - 1];
       if (!state || !previous || state.action !== "ride") continue;
-      const route = routes.find((r) => `${r.route}-${r.dir}` === state.routeKey)!;
+      const route = routes.find((candidate) => `${candidate.route}-${candidate.dir}` === state.routeKey)!;
       const last = segments[segments.length - 1];
       if (last && last.route.route === route.route && last.route.dir === route.dir) {
         last.to = state.station; last.stops += 1;
