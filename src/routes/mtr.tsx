@@ -1,37 +1,50 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useMemo, useState } from "react";
-import { Clock, MapPin, ArrowRight, Wallet } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Clock, MapPin, ArrowRight, Wallet, Navigation, DoorOpen, LocateFixed } from "lucide-react";
 import { getMtr } from "@/lib/hk.functions";
 import { getMtrFare } from "@/lib/fare.functions";
+const AIRPORT_EXPRESS_FARES: Record<string, { octopus: number; single: number }> = {
+  "HOK-AIR": { octopus: 110, single: 120 },
+  "KOW-AIR": { octopus: 100, single: 105 },
+  "TSY-AIR": { octopus: 65, single: 75 },
+  "HOK-AWE": { octopus: 110, single: 120 },
+  "KOW-AWE": { octopus: 100, single: 105 },
+  "TSY-AWE": { octopus: 65, single: 75 },
+};
 
-function MtrFareBox({ from, to }: { from: string; to: string }) {
-  const fn = useServerFn(getMtrFare);
-  const q = useQuery({ queryKey: ["mtrFare", from, to], queryFn: () => fn({ data: { from, to } }), staleTime: 86400000 });
-  const f = q.data;
-  const rows: [string, number | undefined][] = [
-    ["八達通成人", f?.octAdult], ["八達通學生", f?.octStudent], ["八達通小童", f?.octChild],
-    ["長者優惠", f?.octElder], ["單程票成人", f?.single], ["單程票小童", f?.singleChild],
-  ];
+function FareBox({ fare }: { fare: { octAdult: number; octStudent: number; octChild: number; octElder: number; single: number; singleChild: number } }) {
   return (
     <div className="mt-3 border-t pt-3">
       <p className="flex items-center gap-2 font-semibold"><Wallet size={16} className="text-primary" />車資詳情</p>
-      {q.isLoading && <p className="mt-1 text-muted-foreground">載入中…</p>}
-      {q.isError && <p className="mt-1 text-muted-foreground">暫時未能取得車資</p>}
-      {q.data === null && <p className="mt-1 text-muted-foreground">此行程暫無車資資料</p>}
-      {f && (
-        <div className="mt-2 grid grid-cols-2 gap-1.5 text-xs">
-          {rows.map(([k, v]) => (
-            <div key={k} className="flex justify-between rounded-lg bg-muted/60 px-2.5 py-1.5"><span className="text-muted-foreground">{k}</span><b>${v?.toFixed(1)}</b></div>
-          ))}
-        </div>
-      )}
-      <p className="mt-1.5 text-[11px] text-muted-foreground">資料來源：港鐵公開數據（未計機場快綫及東鐵綫頭等）</p>
+      <div className="mt-2 grid grid-cols-2 gap-1.5 text-xs">
+        <div className="flex justify-between rounded-lg bg-muted/60 px-2.5 py-1.5"><span className="text-muted-foreground">八達通成人</span><b>${fare.octAdult.toFixed(1)}</b></div>
+        <div className="flex justify-between rounded-lg bg-muted/60 px-2.5 py-1.5"><span className="text-muted-foreground">單程票成人</span><b>${fare.single.toFixed(1)}</b></div>
+        <div className="flex justify-between rounded-lg bg-muted/60 px-2.5 py-1.5"><span className="text-muted-foreground">八達通學生</span><b>${fare.octStudent.toFixed(1)}</b></div>
+        <div className="flex justify-between rounded-lg bg-muted/60 px-2.5 py-1.5"><span className="text-muted-foreground">八達通小童</span><b>${fare.octChild.toFixed(1)}</b></div>
+      </div>
     </div>
   );
 }
-import { LINES, STATIONS } from "@/lib/mtr-data";
+
+function AirportExpressFareBox({ from, to }: { from: string; to: string }) {
+  const fare = AIRPORT_EXPRESS_FARES[`${from}-${to}`] ?? AIRPORT_EXPRESS_FARES[`${to}-${from}`];
+  if (!fare) return null;
+
+  return (
+    <div className="mt-3 border-t pt-3">
+      <p className="flex items-center gap-2 font-semibold"><Wallet size={16} className="text-[#00888A]" />機場快綫車資詳情</p>
+      <div className="mt-2 grid grid-cols-2 gap-1.5 text-xs">
+        <div className="flex justify-between rounded-lg bg-muted/60 px-2.5 py-1.5"><span className="text-muted-foreground">八達通成人</span><b>${fare.octopus.toFixed(1)}</b></div>
+        <div className="flex justify-between rounded-lg bg-muted/60 px-2.5 py-1.5"><span className="text-muted-foreground">單程票成人</span><b>${fare.single.toFixed(1)}</b></div>
+      </div>
+      <p className="mt-1.5 text-[11px] text-muted-foreground">適用於香港／九龍／青衣往返機場或博覽館；機場快綫不設學生及小童單程票此項顯示。</p>
+    </div>
+  );
+}
+
+import { LINES, STATIONS, STATION_DETAILS } from "@/lib/mtr-data";
 import { PageHeader, Countdown, useNow } from "@/components/BottomNav";
 
 export const Route = createFileRoute("/mtr")({
@@ -50,10 +63,23 @@ const MIN_PER_STOP = 2.3;
 const TRANSFER_MIN = 4;
 type Line = (typeof LINES)[number];
 
-const ALL_STATIONS = Object.keys(STATIONS).sort((a, b) =>
-  STATIONS[a]!.localeCompare(STATIONS[b]!, "zh-HK"),
-);
 const LINE_BY_CODE = Object.fromEntries(LINES.map((l) => [l.code, l]));
+
+function StationOptions() {
+  return (
+    <>
+      {LINES.map((l) => (
+        <optgroup key={l.code} label={l.name}>
+          {l.stations.map((code) => (
+            <option key={`${l.code}-${code}`} value={code} style={{ color: l.color }}>
+              ● {STATIONS[code] ?? code}
+            </option>
+          ))}
+        </optgroup>
+      ))}
+    </>
+  );
+}
 
 type Seg = { line: Line; from: string; to: string; stops: number };
 
@@ -122,11 +148,55 @@ function MtrPage() {
   const [sta, setSta] = useState("CEN");
   const [dest, setDest] = useState("TSW");
   const [activeTab, setActiveTab] = useState<"route" | "trains" | "station">("route");
+  const [locationStatus, setLocationStatus] = useState<"idle" | "loading" | "ready" | "denied">("idle");
+  const [nearestDistance, setNearestDistance] = useState<number | null>(null);
   const now = useNow();
+
+  const locateNearestStation = useCallback(() => {
+    if (!navigator.geolocation) {
+      setLocationStatus("denied");
+      return;
+    }
+    setLocationStatus("loading");
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        const nearest = Object.entries(STATION_DETAILS).reduce<{ code: string; distance: number } | null>((best, [code, details]) => {
+          const [lat, lng] = details.coordinates;
+          const latDelta = (coords.latitude - lat) * 111.32;
+          const lngDelta = (coords.longitude - lng) * 111.32 * Math.cos((coords.latitude * Math.PI) / 180);
+          const distance = Math.sqrt(latDelta ** 2 + lngDelta ** 2);
+          return !best || distance < best.distance ? { code, distance } : best;
+        }, null);
+        if (nearest) {
+          setSta(nearest.code);
+          setNearestDistance(nearest.distance);
+          const nearestLine = LINES.find((candidate) => candidate.stations.includes(nearest.code));
+          if (nearestLine) setLine(nearestLine);
+        }
+        setLocationStatus("ready");
+      },
+      () => setLocationStatus("denied"),
+      { enableHighAccuracy: true, maximumAge: 300000, timeout: 8000 },
+    );
+  }, []);
+
+  useEffect(() => {
+    locateNearestStation();
+  }, [locateNearestStation]);
+
+  const stationDetails = STATION_DETAILS[sta];
+  const locationLabel = locationStatus === "loading" ? "定位中…" : locationStatus === "ready" && nearestDistance != null ? `距你約 ${nearestDistance.toFixed(1)} 公里` : "未使用定位";
   const fn = useServerFn(getMtr);
+  const fareFn = useServerFn(getMtrFare);
 
   const route = useMemo(() => planRoute(sta, dest), [sta, dest]);
   const boardLine = route?.segs[0]?.line ?? line;
+  const isAirportExpressRoute = route?.segs.some((segment) => segment.line.code === "AEL") ?? false;
+  const fareQuery = useQuery({
+    queryKey: ["mtr-fare", sta, dest],
+    queryFn: () => fareFn({ data: { from: sta, to: dest } }),
+    enabled: Boolean(route) && !isAirportExpressRoute,
+  });
 
   const q = useQuery({
     queryKey: ["mtr", boardLine.code, sta],
@@ -169,14 +239,14 @@ function MtrPage() {
 
       {activeTab === "route" && <>
       <div className="mx-5 mt-2 grid grid-cols-2 gap-2">
-        <label className="text-xs text-muted-foreground">起點（全綫車站）
+          <label className="text-xs text-muted-foreground">起點（按路線選擇）
           <select value={sta} onChange={(e) => setSta(e.target.value)} className="mt-1 w-full rounded-xl border bg-card px-3 py-3 text-base font-semibold text-foreground">
-            {ALL_STATIONS.map((s) => <option key={s} value={s}>{STATIONS[s] ?? s}</option>)}
+            <StationOptions />
           </select>
         </label>
-        <label className="text-xs text-muted-foreground">終點（全綫車站）
+        <label className="text-xs text-muted-foreground">終點（按路線選擇）
           <select value={dest} onChange={(e) => setDest(e.target.value)} className="mt-1 w-full rounded-xl border bg-card px-3 py-3 text-base font-semibold text-foreground">
-            {ALL_STATIONS.map((s) => <option key={s} value={s}>{STATIONS[s] ?? s}</option>)}
+            <StationOptions />
           </select>
         </label>
       </div>
@@ -195,39 +265,59 @@ function MtrPage() {
               ))}
             </div>
             {waitMin != null && <p className="mt-2 text-muted-foreground">下班車 {Math.round(waitMin)} 分鐘後，預計 {new Date(now + (waitMin + ride) * 60000).toLocaleTimeString("zh-HK", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Hong_Kong" })} 到達</p>}
-            <MtrFareBox from={sta} to={dest} />
+  {isAirportExpressRoute ? route.segs.filter((segment) => segment.line.code === "AEL").map((segment) => (
+              <AirportExpressFareBox key={`${segment.from}-${segment.to}`} from={segment.from} to={segment.to} />
+            )) : fareQuery.data ? <FareBox fare={fareQuery.data} /> : null}
           </>
         )}
       </div>
       </>}
 
       {activeTab === "station" && <>
-      <div className="mx-5 mt-3 rounded-2xl border bg-card p-4 text-sm">
-        <p className="flex items-center gap-2 font-semibold"><MapPin size={16} className="text-primary" />{STATIONS[sta]}站 詳情</p>
-        <p className="mt-1 text-muted-foreground">車站代號 {sta} · {boardLine.name}第 {boardLine.stations.indexOf(sta) + 1} 站</p>
-        {otherLines.length > 0 && (
-          <div className="mt-2 flex flex-wrap items-center gap-2">轉乘：
-            {otherLines.map((l) => (
-              <button key={l.code} onClick={() => setLine(l)} className="rounded-full px-2 py-0.5 text-xs text-white" style={{ background: l.color }}>{l.name}</button>
-            ))}
+      <div className="mx-5 mt-3 rounded-2xl border bg-card p-4 text-sm shadow-sm">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="flex items-center gap-2 font-semibold"><MapPin size={16} className="text-primary" />{STATIONS[sta]}站詳情</p>
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-muted-foreground">
+              <span>車站代號 {sta} · {locationLabel}</span>
+            </div>
           </div>
-        )}
+          <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-semibold text-primary">最近車站</span>
+        </div>
+        {otherLines.length > 0 && <div className="mt-3 flex flex-wrap items-center gap-2">轉乘：{otherLines.map((l) => <button key={l.code} onClick={() => setLine(l)} className="rounded-full px-2 py-0.5 text-xs text-white" style={{ background: l.color }}>{l.name}</button>)}</div>}
       </div>
 
-      {line.firstLast && (
-        <div className="mx-5 mt-3 rounded-2xl border bg-card p-4 text-sm">
-          <p className="font-semibold">首末班車（{line.name}，約數）</p>
-          <p className="mt-1">往{STATIONS[line.stations[line.stations.length - 1]!]}：首班 {line.firstLast.up[0]} · 尾班 {line.firstLast.up[1]}</p>
-          <p>往{STATIONS[line.stations[0]!]}：首班 {line.firstLast.down[0]} · 尾班 {line.firstLast.down[1]}</p>
-          <p className="mt-1 text-xs text-muted-foreground">各站實際時間略有不同，以港鐵公布為準</p>
-        </div>
-      )}
+      <div className="mx-5 mt-3 grid grid-cols-2 gap-3">
+        <div className="rounded-2xl border bg-card p-4 text-sm"><p className="flex items-center gap-2 font-semibold"><Clock size={16} className="text-primary" />服務時間</p><p className="mt-2 text-lg font-bold">{stationDetails?.openingHours ?? "05:50 – 01:00"}</p><p className="mt-1 text-xs text-muted-foreground">實際開放時間或因特別安排調整</p></div>
+        <div className="rounded-2xl border bg-card p-4 text-sm"><p className="flex items-center gap-2 font-semibold"><Navigation size={16} className="text-primary" />途經路線</p><p className="mt-2 font-bold">{boardLine.name}</p><p className="mt-1 text-xs text-muted-foreground">第 {boardLine.stations.indexOf(sta) + 1} 站</p></div>
+      </div>
+
+      <div className="mx-5 mt-3 rounded-2xl border bg-card p-4 text-sm">
+        <p className="flex items-center gap-2 font-semibold"><DoorOpen size={16} className="text-primary" />出口資訊</p>
+        <div className="mt-3 space-y-2">{(stationDetails?.exits ?? [{ code: "—", places: "出口資料載入中" }]).map((exit) => <div key={exit.code} className="flex gap-3 rounded-xl bg-muted/60 px-3 py-2.5"><span className="min-w-8 rounded-md bg-card px-1.5 py-0.5 text-center font-bold text-primary shadow-sm">{exit.code}</span><span className="text-muted-foreground">{exit.places}</span></div>)}</div>
+      </div>
+
+      {line.firstLast && <div className="mx-5 mt-3 rounded-2xl border bg-card p-4 text-sm"><p className="font-semibold">首末班車（{line.name}，約數）</p><p className="mt-1">往{STATIONS[line.stations[line.stations.length - 1]!]}：首班 {line.firstLast.up[0]} · 尾班 {line.firstLast.up[1]}</p><p>往{STATIONS[line.stations[0]!]}：首班 {line.firstLast.down[0]} · 尾班 {line.firstLast.down[1]}</p><p className="mt-1 text-xs text-muted-foreground">各站實際時間略有不同，以港鐵公布為準</p></div>}
       </>}
 
       {activeTab === "trains" && <>
       <div className="mx-5 mt-3 rounded-2xl border bg-card p-4 text-sm">
-        <p className="flex items-center gap-2 font-semibold"><Clock size={16} className="text-primary" />下班列車</p>
-        <p className="mt-1 text-muted-foreground">{STATIONS[sta]}站 · {boardLine.name} · 每 20 秒更新</p>
+        <div className="flex items-center gap-2 font-semibold">
+          <Clock size={16} className="text-primary" />
+          <span>下班列車</span>
+          <span className="ml-auto flex items-center gap-1 text-xs font-medium text-primary"><LocateFixed size={13} />最近車站</span>
+          <button
+            type="button"
+            onClick={locateNearestStation}
+            disabled={locationStatus === "loading"}
+            className="inline-flex items-center gap-1 rounded-lg border border-primary/30 px-2 py-1 text-xs font-semibold text-primary transition-colors hover:bg-primary/10 disabled:cursor-wait disabled:opacity-60"
+            aria-label="重新定位最近的地鐵站"
+          >
+            <LocateFixed size={13} className={locationStatus === "loading" ? "animate-spin" : undefined} />
+            {locationStatus === "loading" ? "定位中…" : "重新定位"}
+          </button>
+        </div>
+        <p className="mt-1 text-muted-foreground">{STATIONS[sta]}站 · {boardLine.name} · {locationLabel} · 每 20 秒更新</p>
       </div>
 
       {q.isLoading && <p className="mx-5 mt-6 text-muted-foreground">載入中…</p>}
