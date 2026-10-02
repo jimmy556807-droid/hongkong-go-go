@@ -196,19 +196,25 @@ export const getNearbyStops = createServerFn({ method: "GET" })
 export const getNearbyRoutes = createServerFn({ method: "GET" })
   .inputValidator((d) => z.object({ lat: z.number(), lng: z.number() }).parse(d))
   .handler(async ({ data }) => {
-    const k = await j(`${KMB}/stop`).catch(() => null);
-    type NS = { id: string; name: string; dist: number };
+    const [k, c] = await Promise.all([j(`${KMB}/stop`).catch(() => null), j(`${CTB}/stop`).catch(() => null)]);
+    type NS = { id: string; name: string; dist: number; co: "KMB" | "CTB" };
     const stops: NS[] = [];
     for (const s of k?.data ?? []) {
       const lat = Number(s.lat), lng = Number(s.long);
       if (!lat || !lng) continue;
       const dist = distM(data.lat, data.lng, lat, lng);
-      if (dist <= 800) stops.push({ id: String(s.stop), name: String(s.name_tc), dist });
+      if (dist <= 800) stops.push({ id: String(s.stop), name: String(s.name_tc), dist, co: "KMB" });
+    }
+    for (const s of c?.data ?? []) {
+      const lat = Number(s.lat), lng = Number(s.long);
+      if (!lat || !lng) continue;
+      const dist = distM(data.lat, data.lng, lat, lng);
+      if (dist <= 800) stops.push({ id: String(s.stop), name: String(s.name_tc), dist, co: "CTB" });
     }
     stops.sort((a, b) => a.dist - b.dist);
-    const near = stops.slice(0, 8);
-    const etas = await Promise.all(near.map((s) => j(`${KMB}/stop-eta/${s.id}`).catch(() => null)));
-    const m = new Map<string, { route: string; dir: "outbound" | "inbound"; dest: string; stopName: string; dist: number; etas: string[] }>();
+    const near = stops.slice(0, 12);
+    const etas = await Promise.all(near.map((s) => s.co === "KMB" ? j(`${KMB}/stop-eta/${s.id}`).catch(() => null) : j(`${CTB}/eta/CTB/${s.id}/`).catch(() => null)));
+    const m = new Map<string, { route: string; dir: "outbound" | "inbound"; dest: string; stopName: string; dist: number; etas: string[]; co: "KMB" | "CTB" }>();
     etas.forEach((x, i) => {
       for (const e of x?.data ?? []) {
         const key = String(e.route) + String(e.dir);
@@ -222,6 +228,7 @@ export const getNearbyRoutes = createServerFn({ method: "GET" })
             stopName: stop.name,
             dist: stop.dist,
             etas: cur?.etas ?? [],
+            co: stop.co,
           });
         }
         const v = m.get(key)!;
@@ -229,6 +236,90 @@ export const getNearbyRoutes = createServerFn({ method: "GET" })
       }
     });
     return [...m.values()].sort((a, b) => a.route.localeCompare(b.route, "en", { numeric: true }));
+  });
+
+type GmbRoute = {
+  id: string; name: string; district: string; start: string; end: string;
+  fare: number; journeyTime: number; serviceMode: string; detailUrl: string;
+};
+
+const GMB_XML = "https://static.data.gov.hk/td/routes-fares-xml/ROUTE_GMB.xml";
+const GMB_API = "https://data.etagmb.gov.hk";
+let gmbCache: { at: number; data: GmbRoute[] } | null = null;
+
+const xmlTag = (s: string, tag: string) => s.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, "i"))?.[1]?.trim() ?? "";
+
+export const getGmbRoutes = createServerFn({ method: "GET" }).handler(async () => {
+  if (gmbCache && Date.now() - gmbCache.at < 6 * 3600e3) return gmbCache.data;
+  const r = await fetch(GMB_XML);
+  if (!r.ok) throw new Error("無法取得專綫小巴路線資料");
+  const xml = await r.text();
+  const data = xml.split(/<ROUTE>/i).slice(1).map((block): GmbRoute => ({
+    id: xmlTag(block, "ROUTE_ID"), name: xmlTag(block, "ROUTE_NAMEC"), district: xmlTag(block, "DISTRICT"),
+    start: xmlTag(block, "LOC_START_NAMEC"), end: xmlTag(block, "LOC_END_NAMEC"),
+    fare: Number(xmlTag(block, "FULL_FARE")), journeyTime: Number(xmlTag(block, "JOURNEY_TIME")),
+    serviceMode: xmlTag(block, "SERVICE_MODE"), detailUrl: xmlTag(block, "HYPERLINK_C"),
+  })).filter((x) => x.id && x.name);
+  gmbCache = { at: Date.now(), data };
+  return data;
+});
+
+type NearbyGmb = { route: string; dest: string; stopName: string; dist: number; etas: Array<string | number>; co: "GMB"; routeId: string };
+let gmbNearbyCache: { at: number; data: Array<{ routeId: string; route: GmbRoute; stops: Array<{ id: string; name: string; lat: number; lng: number }> }> } | null = null;
+
+export const getNearbyGmbRoutes = createServerFn({ method: "GET" })
+  .inputValidator((d) => z.object({ lat: z.number(), lng: z.number() }).parse(d))
+  .handler(async ({ data }) => {
+    const now = Date.now();
+    if (!gmbNearbyCache || now - gmbNearbyCache.at > 3600000) {
+      const routes = await getGmbRoutes();
+      const entries = await Promise.all(routes.slice(0, 160).map(async (route) => {
+        const res = await fetch(`${GMB_API}/route-stop/${route.id}/1`).catch(() => null);
+        const payload: any = res?.ok ? await res.json().catch(() => null) : null;
+        const raw = payload?.data?.route_stop ?? payload?.data?.stops ?? payload?.data ?? [];
+        const stops = await Promise.all((Array.isArray(raw) ? raw : []).map(async (s: any) => {
+          const id = String(s.stop_id ?? s.id ?? "");
+          const detailRes = await fetch(`${GMB_API}/stop/${id}`).catch(() => null);
+          const detail: any = detailRes?.ok ? await detailRes.json().catch(() => null) : null;
+          const item = detail?.data ?? detail;
+          return { id, name: String(s.stop_name_tc ?? s.name_tc ?? s.name ?? item?.name_tc ?? ""), lat: Number(s.lat ?? item?.lat), lng: Number(s.lng ?? s.long ?? item?.lng) };
+        }));
+        return { routeId: route.id, route, stops: stops.filter((s) => Number.isFinite(s.lat) && Number.isFinite(s.lng) && s.lat !== 0 && s.lng !== 0) };
+      }));
+      gmbNearbyCache = { at: now, data: entries };
+    }
+    const nearby: NearbyGmb[] = [];
+    for (const entry of gmbNearbyCache.data) {
+      const closest = entry.stops.map((s) => ({ ...s, dist: distM(data.lat, data.lng, s.lat, s.lng) })).sort((a, b) => a.dist - b.dist)[0];
+      if (!closest || closest.dist > 800) continue;
+      const etaRes = await fetch(`${GMB_API}/eta/stop/${closest.id}`).catch(() => null);
+      const payload: any = etaRes?.ok ? await etaRes.json().catch(() => null) : null;
+      const etas = (payload?.data?.eta ?? payload?.data?.etas ?? []).slice(0, 3).map((e: any) => e.diff ?? e.timestamp ?? e.eta).filter(Boolean);
+      nearby.push({ route: entry.route.name, dest: entry.route.end, stopName: closest.name, dist: closest.dist, etas, co: "GMB", routeId: entry.routeId });
+    }
+    return nearby.sort((a, b) => a.dist - b.dist).slice(0, 12);
+  });
+
+export const getGmbEta = createServerFn({ method: "GET" })
+  .inputValidator((d) => z.object({ routeId: z.string().regex(/^\\d+$/), routeSeq: z.number().int().min(1).max(9).default(1) }).parse(d))
+  .handler(async ({ data }) => {
+    const r = await fetch(`${GMB_API}/route-stop/${data.routeId}/${data.routeSeq}`);
+    if (!r.ok) throw new Error("無法取得專綫小巴車站資料");
+    const payload: any = await r.json();
+    const stops = payload?.data?.route_stop ?? payload?.data?.stops ?? payload?.data ?? [];
+    return Promise.all((Array.isArray(stops) ? stops : []).map(async (s: any) => {
+      const stopSeq = Number(s.stop_seq ?? s.stop_sequence ?? s.seq);
+      const etaRes = await fetch(`${GMB_API}/eta/route-stop/${data.routeId}/${data.routeSeq}/${stopSeq}`).catch(() => null);
+      const etaPayload: any = etaRes?.ok ? await etaRes.json().catch(() => null) : null;
+      const entries = etaPayload?.data?.eta ?? etaPayload?.data?.etas ?? [];
+      return {
+        seq: stopSeq, id: String(s.stop_id ?? s.id ?? ""),
+        name: String(s.stop_name_tc ?? s.name_tc ?? s.name ?? ""),
+        etas: (Array.isArray(entries) ? entries : []).filter((e: any) => e.timestamp || e.diff != null).slice(0, 3).map((e: any) => ({
+          timestamp: e.timestamp ? String(e.timestamp) : null, diff: e.diff == null ? null : Number(e.diff), remarks: String(e.remarks_tc ?? ""),
+        })),
+      };
+    }));
   });
 
 export const getMtr = createServerFn({ method: "GET" })
