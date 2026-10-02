@@ -54,21 +54,11 @@ function GmbPanel() {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<GmbRoute | null>(null);
   const routes = useQuery({ queryKey: ["gmb-routes"], queryFn: routesFn, staleTime: 3600e3 });
-  const eta = useQuery({
-    queryKey: ["gmb-eta", selected?.id],
-    queryFn: () => etaFn({ data: { routeId: selected!.id, routeSeq: 1 } }),
-    enabled: !!selected,
-    refetchInterval: 60000,
-  });
-  const filtered = (routes.data ?? []).filter((r) => `${r.name} ${r.start} ${r.end}`.includes(query.trim())).slice(0, 30);
-  return <section className="mt-6 border-t pt-5" aria-labelledby="gmb-title">
-    <div className="mx-5 flex items-center justify-between"><div><h2 id="gmb-title" className="text-lg font-bold">專綫小巴</h2><p className="text-xs text-muted-foreground">路綫、全程收費及實時到站</p></div><span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">GMB</span></div>
-    {!selected && <div className="mx-5 mt-3"><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜尋小巴路綫或地點" className="w-full rounded-xl border bg-card px-3 py-3 outline-none" />
-      {routes.isLoading && <p className="mt-3 text-sm text-muted-foreground">載入專綫小巴路綫中…</p>}
-      {routes.isError && <p className="mt-3 text-sm text-destructive">未能載入專綫小巴資料</p>}
-      <div className="mt-2 divide-y rounded-2xl border bg-card">{filtered.map((r) => <button key={r.id} onClick={() => setSelected(r)} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-muted"><b className="w-14 text-primary">{r.name}</b><span className="min-w-0 flex-1 text-sm">{r.start} → {r.end}<span className="block text-xs text-muted-foreground">全程 ${r.fare.toFixed(1)} · 約 {r.journeyTime} 分鐘</span></span></button>)}{!routes.isLoading && filtered.length === 0 && <p className="p-4 text-sm text-muted-foreground">找不到相關路綫</p>}</div>
-    </div>}
-    {selected && <div className="mx-5 mt-3"><button onClick={() => setSelected(null)} className="text-sm text-primary underline">← 返回專綫小巴路綫</button><div className="mt-3 rounded-2xl border bg-card p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-xl font-bold text-primary">{selected.name}</p><p className="mt-1 text-sm">{selected.start} → {selected.end}</p></div><b className="rounded-lg bg-muted px-2 py-1 text-sm">${selected.fare.toFixed(1)}</b></div><p className="mt-2 text-xs text-muted-foreground">全程收費 · 預計行程 {selected.journeyTime} 分鐘 · 每分鐘自動更新</p>{eta.isLoading && <p className="mt-4 text-sm text-muted-foreground">載入實時到站中…</p>}{eta.isError && <p className="mt-4 text-sm text-destructive">此路綫暫未提供實時到站資料</p>}<ol className="mt-3 divide-y">{eta.data?.map((s) => <li key={s.seq} className="flex items-center gap-3 py-2.5"><span className="w-6 text-xs text-muted-foreground">{s.seq}</span><span className="flex-1 text-sm">{s.name}</span><span className="text-right text-xs">{s.etas.length ? s.etas.map((e, i) => <b key={i} className="ml-2 text-primary">{e.diff != null ? `${e.diff} 分鐘` : e.timestamp?.slice(11, 16)}</b>) : <span className="text-muted-foreground">暫無班次</span>}</span></li>)}</ol></div></div>}
+  const eta = useQuery({ queryKey: ["gmb-eta", selected?.id], queryFn: () => etaFn({ data: { routeId: selected!.id, routeSeq: 1 } }), enabled: !!selected, refetchInterval: 60000 });
+  const filtered = (routes.data ?? []).filter((r) => `${r.name} ${r.start} ${r.end}`.includes(query.trim())).slice(0, 12);
+  return <section className="mx-5 mt-6" aria-labelledby="gmb-title">
+    <div className="mb-3 flex items-end justify-between"><div><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">專綫小巴</p><h2 id="gmb-title" className="text-xl font-bold">小巴實時到站</h2></div><span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-800">GMB</span></div>
+    {!selected ? <div className="rounded-2xl border bg-card p-3 shadow-sm"><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜尋小巴路綫或地點" aria-label="搜尋專綫小巴" className="w-full rounded-xl border bg-background px-3 py-2.5 outline-none focus:ring-2 focus:ring-primary/30" />{routes.isLoading && <p className="p-3 text-sm text-muted-foreground">載入小巴路綫中…</p>}{routes.isError && <p className="p-3 text-sm text-destructive">未能載入專綫小巴資料</p>}<div className="mt-2 divide-y">{filtered.map((r) => <button key={r.id} onClick={() => setSelected(r)} className="flex w-full items-center gap-3 px-2 py-3 text-left transition hover:bg-muted/60"><b className="w-14 text-amber-700">{r.name}</b><span className="min-w-0 flex-1 text-sm">{r.start} → {r.end}<span className="mt-0.5 block text-xs text-muted-foreground">全程 ${r.fare.toFixed(1)} · 約 {r.journeyTime} 分鐘</span></span><span className="text-xs text-muted-foreground">查看到站</span></button>)}</div></div> : <div className="rounded-2xl border bg-card p-4 shadow-sm"><button onClick={() => setSelected(null)} className="text-sm text-primary underline">← 返回小巴路綫</button><div className="mt-3 flex items-start justify-between gap-3"><div><p className="text-xl font-bold text-amber-700">{selected.name}</p><p className="mt-1 text-sm">{selected.start} → {selected.end}</p></div><b className="rounded-lg bg-amber-100 px-2 py-1 text-sm text-amber-800">${selected.fare.toFixed(1)}</b></div><p className="mt-2 text-xs text-muted-foreground">全程收費 · 預計 {selected.journeyTime} 分鐘 · 每分鐘更新</p>{eta.isLoading && <p className="mt-4 text-sm text-muted-foreground">載入實時到站中…</p>}{eta.isError && <p className="mt-4 text-sm text-destructive">此路綫暫未提供實時到站資料</p>}<ol className="mt-3 divide-y">{eta.data?.map((s) => <li key={s.seq} className="flex items-center gap-3 py-2.5"><span className="w-6 text-xs text-muted-foreground">{s.seq}</span><span className="flex-1 text-sm">{s.name}</span><span className="text-right text-xs">{s.etas.length ? s.etas.map((e, i) => <b key={i} className="ml-2 text-amber-700">{e.diff != null ? `${e.diff} 分鐘` : e.timestamp?.slice(11, 16)}</b>) : <span className="text-muted-foreground">暫無班次</span>}</span></li>)}</ol></div>}
   </section>;
 }
 
@@ -116,7 +106,7 @@ function BusPage() {
 
   return (
     <div>
-      <PageHeader title="巴士" sub="九巴 / 龍運 / 城巴（含前新巴）實時到站" />
+      <PageHeader title="巴士" sub="九巴 / 城巴 / 專綫小巴實時到站" />
       <div className="relative mx-5">
         <div className="flex gap-2">
           <div className="flex flex-1 items-center gap-2 rounded-xl border bg-card px-3">
@@ -142,25 +132,12 @@ function BusPage() {
 
       {!route && (
         <div className="mx-5 mt-4">
-          <p className="flex items-center gap-2 text-sm font-semibold"><Navigation size={16} className="text-primary" />附近巴士路線</p>
-          {!pos && <p className="mt-1 text-sm text-muted-foreground">正在取得你嘅位置…如未能定位，請用上面搜尋路線。</p>}
-          {pos && nearby.isLoading && <p className="mt-1 text-sm text-muted-foreground">搵緊附近路線…</p>}
-          {pos && nearby.data?.length === 0 && <p className="mt-1 text-sm text-muted-foreground">附近 800 米內搵唔到巴士路線</p>}
-          {!!nearby.data?.length && (
-            <div className="mt-2 divide-y rounded-2xl border bg-card">
-              {nearby.data.map((r) => (
-                <button key={r.route + r.dir} onClick={() => pick(r.route, r.dir, "KMB")} className="flex w-full items-center gap-3 px-4 py-3 text-left">
-                  <b className="w-12 shrink-0 text-primary">{r.route}</b>
-                  <span className="flex-1 text-sm">
-                    往 {r.dest}
-                    <span className="block text-xs text-muted-foreground"><MapPin size={10} className="mr-0.5 inline" />{r.stopName} · {r.dist < 1000 ? `${Math.round(r.dist)} 米` : `${(r.dist / 1000).toFixed(1)} 公里`}</span>
-                  </span>
-                  <span className="flex gap-2 text-sm">{r.etas.length ? r.etas.slice(0, 2).map((e, i) => <Countdown key={i} at={e} now={now} />) : <span className="text-xs text-muted-foreground">暫無班次</span>}</span>
-                </button>
-              ))}
-            </div>
-          )}
-          <p className="mt-1 text-[11px] text-muted-foreground">附近路線根據最近車站嘅實時班次整理；城巴路線請用上面搜尋。</p>
+          <div className="flex items-end justify-between"><div><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">附近交通</p><h2 className="mt-1 flex items-center gap-2 text-xl font-bold"><Navigation size={18} className="text-primary" />三種巴士實時到站</h2></div><span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">LIVE</span></div>
+          {!pos && <p className="mt-2 text-sm text-muted-foreground">正在取得你嘅位置…如未能定位，請用上面搜尋路線。</p>}
+          {pos && nearby.isLoading && <p className="mt-2 text-sm text-muted-foreground">搵緊附近九巴及城巴路線…</p>}
+          {pos && nearby.data?.length === 0 && <p className="mt-2 text-sm text-muted-foreground">附近 800 米內搵唔到巴士路線</p>}
+          {!!nearby.data?.length && <div className="mt-3 overflow-hidden rounded-2xl border bg-card shadow-sm"><div className="flex gap-4 border-b px-4 py-3 text-xs text-muted-foreground"><span><i className="mr-1 inline-block size-2 rounded-full bg-destructive" />九巴</span><span><i className="mr-1 inline-block size-2 rounded-full bg-accent-foreground" />城巴</span><span className="ml-auto">每 30 秒更新</span></div><div className="divide-y">{nearby.data.map((r) => <button key={r.co + r.route + r.dir} onClick={() => pick(r.route, r.dir, r.co)} className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-muted/60"><span className={`flex size-9 shrink-0 items-center justify-center rounded-xl text-xs font-bold ${r.co === "KMB" ? "bg-destructive/15 text-destructive" : "bg-accent text-accent-foreground"}`}>{r.co === "KMB" ? "九巴" : "城巴"}</span><span className="min-w-0 flex-1 text-sm"><b className="mr-2 text-base">{r.route}</b>往 {r.dest}<span className="block text-xs text-muted-foreground"><MapPin size={10} className="mr-0.5 inline" />{r.stopName} · {r.dist < 1000 ? `${Math.round(r.dist)} 米` : `${(r.dist / 1000).toFixed(1)} 公里`}</span></span><span className="flex gap-1.5 text-sm">{r.etas.length ? r.etas.slice(0, 2).map((e, i) => <Countdown key={i} at={e} now={now} />) : <span className="text-xs text-muted-foreground">暫無班次</span>}</span></button>)}</div></div>}
+          <p className="mt-2 text-[11px] text-muted-foreground">九巴、城巴按距離排列；專綫小巴路線及實時到站見下方。</p>
         </div>
       )}
 

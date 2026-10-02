@@ -196,19 +196,25 @@ export const getNearbyStops = createServerFn({ method: "GET" })
 export const getNearbyRoutes = createServerFn({ method: "GET" })
   .inputValidator((d) => z.object({ lat: z.number(), lng: z.number() }).parse(d))
   .handler(async ({ data }) => {
-    const k = await j(`${KMB}/stop`).catch(() => null);
-    type NS = { id: string; name: string; dist: number };
+    const [k, c] = await Promise.all([j(`${KMB}/stop`).catch(() => null), j(`${CTB}/stop`).catch(() => null)]);
+    type NS = { id: string; name: string; dist: number; co: "KMB" | "CTB" };
     const stops: NS[] = [];
     for (const s of k?.data ?? []) {
       const lat = Number(s.lat), lng = Number(s.long);
       if (!lat || !lng) continue;
       const dist = distM(data.lat, data.lng, lat, lng);
-      if (dist <= 800) stops.push({ id: String(s.stop), name: String(s.name_tc), dist });
+      if (dist <= 800) stops.push({ id: String(s.stop), name: String(s.name_tc), dist, co: "KMB" });
+    }
+    for (const s of c?.data ?? []) {
+      const lat = Number(s.lat), lng = Number(s.long);
+      if (!lat || !lng) continue;
+      const dist = distM(data.lat, data.lng, lat, lng);
+      if (dist <= 800) stops.push({ id: String(s.stop), name: String(s.name_tc), dist, co: "CTB" });
     }
     stops.sort((a, b) => a.dist - b.dist);
-    const near = stops.slice(0, 8);
-    const etas = await Promise.all(near.map((s) => j(`${KMB}/stop-eta/${s.id}`).catch(() => null)));
-    const m = new Map<string, { route: string; dir: "outbound" | "inbound"; dest: string; stopName: string; dist: number; etas: string[] }>();
+    const near = stops.slice(0, 12);
+    const etas = await Promise.all(near.map((s) => s.co === "KMB" ? j(`${KMB}/stop-eta/${s.id}`).catch(() => null) : j(`${CTB}/eta/CTB/${s.id}/`).catch(() => null)));
+    const m = new Map<string, { route: string; dir: "outbound" | "inbound"; dest: string; stopName: string; dist: number; etas: string[]; co: "KMB" | "CTB" }>();
     etas.forEach((x, i) => {
       for (const e of x?.data ?? []) {
         const key = String(e.route) + String(e.dir);
@@ -222,6 +228,7 @@ export const getNearbyRoutes = createServerFn({ method: "GET" })
             stopName: stop.name,
             dist: stop.dist,
             etas: cur?.etas ?? [],
+            co: stop.co,
           });
         }
         const v = m.get(key)!;
