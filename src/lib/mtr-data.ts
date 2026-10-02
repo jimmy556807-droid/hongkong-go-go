@@ -27,6 +27,11 @@ export const STATION_DETAILS: Record<string, StationDetails> = {
   YMT: { coordinates: [22.3129, 114.1707], openingHours: "05:50 – 01:00", exits: [{ code: "A1", places: "油麻地警署、彌敦道" }, { code: "C", places: "玉器市場" }, { code: "D", places: "廟街" }] },
   MOK: { coordinates: [22.3194, 114.1694], openingHours: "05:50 – 01:00", exits: [{ code: "A1", places: "朗豪坊、女人街" }, { code: "B2", places: "西洋菜南街" }, { code: "E2", places: "旺角中心" }] },
   KOT: { coordinates: [22.337, 114.176], openingHours: "05:50 – 01:00", exits: [{ code: "A", places: "又一城、香港城市大學" }, { code: "B", places: "浸會醫院" }, { code: "C", places: "九龍塘教育服務中心" }] },
+  KOB: { coordinates: [22.3238, 114.2156], openingHours: "05:50 – 01:00", exits: [{ code: "A", places: "德福廣場、九龍灣" }, { code: "B", places: "啟業邨、常怡道" }] },
+  NTK: { coordinates: [22.3154, 114.2169], openingHours: "05:50 – 01:00", exits: [{ code: "A", places: "裕民坊、牛頭角道" }, { code: "B", places: "淘大花園、安基苑" }] },
+  KWT: { coordinates: [22.3126, 114.2261], openingHours: "05:50 – 01:00", exits: [{ code: "A", places: "觀塘裕民坊、觀塘道" }, { code: "B", places: "觀塘碼頭、開源道" }, { code: "D", places: "駿業里、鴻圖道" }] },
+  LAT: { coordinates: [22.3078, 114.2343], openingHours: "05:50 – 01:00", exits: [{ code: "A", places: "匯景花園、茶果嶺道" }, { code: "B", places: "藍田邨、觀塘道" }] },
+  YAT: { coordinates: [22.3049, 114.2363], openingHours: "05:50 – 01:00", exits: [{ code: "A1", places: "油塘中心、鯉魚門廣場" }, { code: "A2", places: "鯉魚門海濱" }, { code: "B1", places: "高超道" }] },
 };
 
 export const LINES: { code: string; name: string; color: string; stations: string[]; firstLast?: { up: [string, string]; down: [string, string] } }[] = [

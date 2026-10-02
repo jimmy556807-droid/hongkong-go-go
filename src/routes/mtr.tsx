@@ -136,7 +136,9 @@ function MtrPage() {
       ({ coords }) => {
         const nearest = Object.entries(STATION_DETAILS).reduce<{ code: string; distance: number } | null>((best, [code, details]) => {
           const [lat, lng] = details.coordinates;
-          const distance = Math.sqrt(Math.pow((coords.latitude - lat) * 111, 2) + Math.pow((coords.longitude - lng) * 102, 2));
+          const latDelta = (coords.latitude - lat) * 111.32;
+          const lngDelta = (coords.longitude - lng) * 111.32 * Math.cos((coords.latitude * Math.PI) / 180);
+          const distance = Math.sqrt(latDelta ** 2 + lngDelta ** 2);
           return !best || distance < best.distance ? { code, distance } : best;
         }, null);
         if (nearest) {
