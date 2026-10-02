@@ -50,10 +50,23 @@ const MIN_PER_STOP = 2.3;
 const TRANSFER_MIN = 4;
 type Line = (typeof LINES)[number];
 
-const ALL_STATIONS = Object.keys(STATIONS).sort((a, b) =>
-  STATIONS[a]!.localeCompare(STATIONS[b]!, "zh-HK"),
-);
 const LINE_BY_CODE = Object.fromEntries(LINES.map((l) => [l.code, l]));
+
+function StationOptions() {
+  return (
+    <>
+      {LINES.map((l) => (
+        <optgroup key={l.code} label={l.name}>
+          {l.stations.map((code) => (
+            <option key={`${l.code}-${code}`} value={code}>
+              {STATIONS[code] ?? code}
+            </option>
+          ))}
+        </optgroup>
+      ))}
+    </>
+  );
+}
 
 type Seg = { line: Line; from: string; to: string; stops: number };
 
@@ -206,9 +219,14 @@ function MtrPage() {
 
       {activeTab === "route" && <>
       <div className="mx-5 mt-2 grid grid-cols-2 gap-2">
-        <label className="text-xs text-muted-foreground">起點（全綫車站）
+          <label className="text-xs text-muted-foreground">起點（按路線選擇）
           <select value={sta} onChange={(e) => setSta(e.target.value)} className="mt-1 w-full rounded-xl border bg-card px-3 py-3 text-base font-semibold text-foreground">
-            {ALL_STATIONS.map((s) => <option key={s} value={s}>{STATIONS[s] ?? s}</option>)}
+            <StationOptions />
+          </select>
+        </label>
+        <label className="text-xs text-muted-foreground">終點（按路線選擇）
+          <select value={dest} onChange={(e) => setDest(e.target.value)} className="mt-1 w-full rounded-xl border bg-card px-3 py-3 text-base font-semibold text-foreground">
+            <StationOptions />
           </select>
         </label>
         <label className="text-xs text-muted-foreground">終點（全綫車站）
