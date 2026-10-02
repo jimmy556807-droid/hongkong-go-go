@@ -64,7 +64,7 @@ for (const [code, coordinates] of Object.entries(ADDITIONAL_STATION_COORDINATES)
     STATION_DETAILS[code] = {
       coordinates,
   openingHours: "05:50 – 01:00",
-  toiletLocation: "大堂或月台附近；請按站內指示前往，實際位置以現場標示為準。",
+      toiletLocation: "無",
   exits: [
         { code: "A", places: `${STATIONS[code]}站周邊主要道路` },
         { code: "B", places: `${STATIONS[code]}站公共交通接駁` },

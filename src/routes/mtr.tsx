@@ -309,7 +309,7 @@ function MtrPage() {
 
       <div className="mx-5 mt-3 rounded-2xl border bg-card p-4 text-sm">
         <p className="flex items-center gap-2 font-semibold"><Navigation size={16} className="text-primary" />站內洗手間位置</p>
-        <p className="mt-2 text-muted-foreground">{stationDetails?.toiletLocation ?? "請按站內指示前往洗手間；實際位置以港鐵官方資料及現場標示為準。"}</p>
+        <p className="mt-2 text-muted-foreground">{stationDetails?.toiletLocation ?? "無"}</p>
       </div>
 
       <div className="mx-5 mt-3 rounded-2xl border bg-card p-4 text-sm">
