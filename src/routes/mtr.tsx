@@ -150,7 +150,7 @@ function MtrPage() {
   const [line, setLine] = useState<Line>(LINES[0]!);
   const [sta, setSta] = useState("CEN");
   const [dest, setDest] = useState("TSW");
-  const [activeTab, setActiveTab] = useState<"route" | "trains" | "station">("route");
+  const [activeTab, setActiveTab] = useState<"route" | "trains" | "station">("trains");
   const [locationStatus, setLocationStatus] = useState<"idle" | "loading" | "ready" | "denied">("idle");
   const [nearestDistance, setNearestDistance] = useState<number | null>(null);
   const now = useNow();
