@@ -232,7 +232,7 @@ function MtrPage() {
       </div>
       {mode === "lrt" ? <LrtPanel /> : <>
       <div className="mx-5 mt-3 grid grid-cols-3 rounded-2xl bg-muted p-1" role="tablist" aria-label="地鐵功能分類">
-        {([['route', '路線規劃'], ['trains', '下班列車'], ['station', '車站詳情']] as const).map(([value, label]) => (
+        {([['trains', '下班列車'], ['route', '路線規劃'], ['station', '車站詳情']] as const).map(([value, label]) => (
           <button key={value} role="tab" aria-selected={activeTab === value} onClick={() => setActiveTab(value)}
             className={`rounded-xl px-2 py-2.5 text-sm font-semibold transition-colors ${activeTab === value ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}>
             {label}
