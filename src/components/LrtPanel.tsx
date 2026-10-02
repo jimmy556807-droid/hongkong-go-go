@@ -61,16 +61,24 @@ export function LrtPanel() {
   }, [routes]);
 
   const tripRoute = useMemo(() => {
-    if (tab !== "route" || !from || !to) return cur;
-    return routes.find((route) => {
-      const fromIndex = route.stops.findIndex((stop) => stop.id === from);
-      const toIndex = route.stops.findIndex((stop) => stop.id === to);
-      return fromIndex >= 0 && toIndex > fromIndex;
-    }) ?? cur;
+    if (tab !== "route" || !from || !to || from === to) return cur;
+    return routes
+      .filter((route) => {
+        const fromIndex = route.stops.findIndex((stop) => stop.id === from);
+        const toIndex = route.stops.findIndex((stop) => stop.id === to);
+        return fromIndex >= 0 && toIndex >= 0 && fromIndex !== toIndex;
+      })
+      .sort((a, b) => {
+        const aFrom = a.stops.findIndex((stop) => stop.id === from);
+        const aTo = a.stops.findIndex((stop) => stop.id === to);
+        const bFrom = b.stops.findIndex((stop) => stop.id === from);
+        const bTo = b.stops.findIndex((stop) => stop.id === to);
+        return Math.abs(aTo - aFrom) - Math.abs(bTo - bFrom);
+      })[0] ?? cur;
   }, [cur, from, routes, tab, to]);
   const tripStops = tripRoute?.stops ?? stops;
   const fi = tripStops.findIndex((s) => s.id === fromId), ti = tripStops.findIndex((s) => s.id === toId);
-  const nStops = fi >= 0 && ti > fi ? ti - fi : 0;
+  const nStops = fi >= 0 && ti >= 0 && fi !== ti ? Math.abs(ti - fi) : 0;
   const tripMinutes = tripRoute ? Math.round(nStops * getMinutesPerStop(tripRoute.route)) : 0;
   const sched = useQuery({
     queryKey: ["lrt-sched", tab === "route" ? fromId : staId],
