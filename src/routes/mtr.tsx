@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Clock, MapPin, ArrowRight, Wallet, Navigation, DoorOpen, LocateFixed } from "lucide-react";
 import { getMtr } from "@/lib/hk.functions";
+import { getMtrFare } from "@/lib/fare.functions";
 const AIRPORT_EXPRESS_FARES: Record<string, { octopus: number; single: number }> = {
   "HOK-AIR": { octopus: 110, single: 120 },
   "KOW-AIR": { octopus: 100, single: 105 },
@@ -12,6 +13,20 @@ const AIRPORT_EXPRESS_FARES: Record<string, { octopus: number; single: number }>
   "KOW-AWE": { octopus: 100, single: 105 },
   "TSY-AWE": { octopus: 65, single: 75 },
 };
+
+function FareBox({ fare }: { fare: { octAdult: number; octStudent: number; octChild: number; octElder: number; single: number; singleChild: number } }) {
+  return (
+    <div className="mt-3 border-t pt-3">
+      <p className="flex items-center gap-2 font-semibold"><Wallet size={16} className="text-primary" />車資詳情</p>
+      <div className="mt-2 grid grid-cols-2 gap-1.5 text-xs">
+        <div className="flex justify-between rounded-lg bg-muted/60 px-2.5 py-1.5"><span className="text-muted-foreground">八達通成人</span><b>${fare.octAdult.toFixed(1)}</b></div>
+        <div className="flex justify-between rounded-lg bg-muted/60 px-2.5 py-1.5"><span className="text-muted-foreground">單程票成人</span><b>${fare.single.toFixed(1)}</b></div>
+        <div className="flex justify-between rounded-lg bg-muted/60 px-2.5 py-1.5"><span className="text-muted-foreground">八達通學生</span><b>${fare.octStudent.toFixed(1)}</b></div>
+        <div className="flex justify-between rounded-lg bg-muted/60 px-2.5 py-1.5"><span className="text-muted-foreground">八達通小童</span><b>${fare.octChild.toFixed(1)}</b></div>
+      </div>
+    </div>
+  );
+}
 
 function AirportExpressFareBox({ from, to }: { from: string; to: string }) {
   const fare = AIRPORT_EXPRESS_FARES[`${from}-${to}`] ?? AIRPORT_EXPRESS_FARES[`${to}-${from}`];
@@ -172,9 +187,16 @@ function MtrPage() {
   const stationDetails = STATION_DETAILS[sta];
   const locationLabel = locationStatus === "loading" ? "定位中…" : locationStatus === "ready" && nearestDistance != null ? `距你約 ${nearestDistance.toFixed(1)} 公里` : "未使用定位";
   const fn = useServerFn(getMtr);
+  const fareFn = useServerFn(getMtrFare);
 
   const route = useMemo(() => planRoute(sta, dest), [sta, dest]);
   const boardLine = route?.segs[0]?.line ?? line;
+  const isAirportExpressRoute = route?.segs.some((segment) => segment.line.code === "AEL") ?? false;
+  const fareQuery = useQuery({
+    queryKey: ["mtr-fare", sta, dest],
+    queryFn: () => fareFn({ data: { from: sta, to: dest } }),
+    enabled: Boolean(route) && !isAirportExpressRoute,
+  });
 
   const q = useQuery({
     queryKey: ["mtr", boardLine.code, sta],
@@ -243,10 +265,9 @@ function MtrPage() {
               ))}
             </div>
             {waitMin != null && <p className="mt-2 text-muted-foreground">下班車 {Math.round(waitMin)} 分鐘後，預計 {new Date(now + (waitMin + ride) * 60000).toLocaleTimeString("zh-HK", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Hong_Kong" })} 到達</p>}
-  {route.segs.filter((segment) => segment.line.code === "AEL").map((segment) => (
-
+  {isAirportExpressRoute ? route.segs.filter((segment) => segment.line.code === "AEL").map((segment) => (
               <AirportExpressFareBox key={`${segment.from}-${segment.to}`} from={segment.from} to={segment.to} />
-            ))}
+            )) : fareQuery.data ? <FareBox fare={fareQuery.data} /> : null}
           </>
         )}
       </div>
