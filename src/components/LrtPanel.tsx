@@ -6,23 +6,27 @@ import { getLrtNetwork, getLrtSchedule, getLrtFare, type LrtRoute } from "@/lib/
 
 const MIN_PER_STOP = 1.8;
 const LRT_COLOR = "#D3A809";
+const LRT_ROUTE_COLORS = ["#0072BC", "#E87511", "#7B3F98", "#008A45", "#D33F49", "#008C95", "#B06A00"];
+
+const routeColor = (route: string) => LRT_ROUTE_COLORS[(Number(route) || 0) % LRT_ROUTE_COLORS.length];
 
 export function LrtPanel() {
   const netFn = useServerFn(getLrtNetwork);
   const schedFn = useServerFn(getLrtSchedule);
   const fareFn = useServerFn(getLrtFare);
-  const [tab, setTab] = useState<"route" | "trains" | "station">("route");
+  const [tab, setTab] = useState<"route" | "trains" | "station">("trains");
   const [key, setKey] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [sta, setSta] = useState("");
+  const [stationsExpanded, setStationsExpanded] = useState(false);
 
   const net = useQuery({ queryKey: ["lrt-net"], queryFn: () => netFn(), staleTime: 3600e3 });
   const routes = net.data ?? [];
   const cur: LrtRoute | undefined = routes.find((r) => `${r.route}-${r.dir}` === key) ?? routes[0];
   const stops = cur?.stops ?? [];
-  const fromId = from && stops.some((s) => s.id === from) ? from : stops[0]?.id ?? "";
-  const toId = to && stops.some((s) => s.id === to) ? to : stops[stops.length - 1]?.id ?? "";
+  const fromId = from || (stops[0]?.id ?? "");
+  const toId = to || (stops[stops.length - 1]?.id ?? "");
   const staId = sta || fromId;
 
   const allStations = useMemo(() => {
@@ -32,6 +36,16 @@ export function LrtPanel() {
       v.routes.add(r.route); m.set(s.id, v);
     }
     return [...m.entries()].sort((a, b) => a[1].name.localeCompare(b[1].name, "zh-HK"));
+  }, [routes]);
+
+  const stationGroups = useMemo(() => {
+    const groups = new Map<string, Map<string, { name: string; code: string }>>();
+    for (const r of routes) {
+      const stations = groups.get(r.route) ?? new Map();
+      for (const s of r.stops) stations.set(s.id, { name: s.name, code: s.code });
+      groups.set(r.route, stations);
+    }
+    return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b, "en", { numeric: true }));
   }, [routes]);
 
   const fi = stops.findIndex((s) => s.id === fromId), ti = stops.findIndex((s) => s.id === toId);
@@ -76,7 +90,7 @@ export function LrtPanel() {
   return (
     <div>
       <div className="mx-5 mt-3 grid grid-cols-3 rounded-2xl bg-muted p-1" role="tablist" aria-label="輕鐵功能分類">
-        {([["route", "路線"], ["trains", "下班列車"], ["station", "車站詳情"]] as const).map(([v, l]) => (
+        {([["trains", "下班列車"], ["route", "路線"], ["station", "車站詳情"]] as const).map(([v, l]) => (
           <button key={v} role="tab" aria-selected={tab === v} onClick={() => setTab(v)}
             className={`rounded-xl px-2 py-2.5 text-sm font-semibold ${tab === v ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}>{l}</button>
         ))}
@@ -99,7 +113,15 @@ export function LrtPanel() {
           {([["起點", fromId, setFrom], ["終點", toId, setTo]] as const).map(([l, v, set]) => (
             <label key={l} className="text-xs text-muted-foreground">{l}
               <select value={v} onChange={(e) => set(e.target.value)} className="mt-1 w-full rounded-xl border bg-card px-3 py-3 text-base font-semibold text-foreground">
-                {stops.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                {stationGroups.map(([route, stations]) => (
+                  <optgroup key={route} label={`路線 ${route}`}>
+                    {[...stations.entries()].map(([id, s]) => (
+                      <option key={`${route}-${id}`} value={id} style={{ color: routeColor(route) }}>
+                        ● {s.name}（{s.code}）
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
               </select>
             </label>
           ))}
@@ -122,22 +144,21 @@ export function LrtPanel() {
             </div>
           )}
         </div>
-        <ol className="mx-5 mt-3 rounded-2xl border bg-card p-4">
-          {stops.map((s, i) => (
-            <li key={s.id} className="flex items-center gap-3 py-1.5 text-sm">
-              <span className="h-3 w-3 rounded-full border-2" style={{ borderColor: LRT_COLOR, background: i >= fi && i <= ti && nStops > 0 ? LRT_COLOR : "transparent" }} />
-              <button className="text-left hover:underline" onClick={() => { setSta(s.id); setTab("station"); }}>{s.name}</button>
-              <span className="ml-auto text-xs text-muted-foreground">{s.code}</span>
-            </li>
-          ))}
-        </ol>
       </>}
 
       {tab !== "route" && (
         <div className="mx-5 mt-3">
           <label className="text-xs text-muted-foreground">車站
             <select value={staId} onChange={(e) => setSta(e.target.value)} className="mt-1 w-full rounded-xl border bg-card px-3 py-3 text-base font-semibold text-foreground">
-              {allStations.map(([id, s]) => <option key={id} value={id}>{s.name}</option>)}
+              {stationGroups.map(([route, stations]) => (
+                <optgroup key={route} label={`路線 ${route}`}>
+                  {[...stations.entries()].map(([id, s]) => (
+                    <option key={`${route}-${id}`} value={id} style={{ color: routeColor(route) }}>
+                      ● {s.name}（{s.code}）
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
             </select>
           </label>
         </div>
@@ -156,6 +177,26 @@ export function LrtPanel() {
           </div>
           <a className="mt-3 inline-flex items-center gap-1 text-sm text-primary" target="_blank" rel="noreferrer"
             href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent("輕鐵 " + staInfo.name + "站")}`}><MapPin size={14} />喺地圖睇</a>
+          <button
+            type="button"
+            aria-expanded={stationsExpanded}
+            onClick={() => setStationsExpanded((expanded) => !expanded)}
+            className="mt-4 flex w-full items-center justify-between border-t pt-3 text-left text-sm font-semibold"
+          >
+            <span>輕鐵站點</span>
+            <span aria-hidden="true" className="text-lg leading-none text-muted-foreground">{stationsExpanded ? "−" : "+"}</span>
+          </button>
+          {stationsExpanded && (
+            <ol className="mt-1">
+              {stops.map((s) => (
+                <li key={s.id} className="flex items-center gap-3 py-1.5 text-sm">
+                  <span className="h-3 w-3 rounded-full border-2" style={{ borderColor: LRT_COLOR, background: s.id === staId ? LRT_COLOR : "transparent" }} />
+                  <button className="text-left hover:underline" onClick={() => setSta(s.id)}>{s.name}</button>
+                  <span className="ml-auto text-xs text-muted-foreground">{s.code}</span>
+                </li>
+              ))}
+            </ol>
+          )}
         </div>
       )}
       {tab !== "route" && <Trains />}
