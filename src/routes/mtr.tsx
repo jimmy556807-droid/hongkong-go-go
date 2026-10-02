@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Clock, MapPin, ArrowRight, Wallet, Navigation, DoorOpen, LocateFixed } from "lucide-react";
 import { getMtr } from "@/lib/hk.functions";
 import { getMtrFare } from "@/lib/fare.functions";
@@ -126,7 +126,7 @@ function MtrPage() {
   const [nearestDistance, setNearestDistance] = useState<number | null>(null);
   const now = useNow();
 
-  useEffect(() => {
+  const locateNearestStation = useCallback(() => {
     if (!navigator.geolocation) {
       setLocationStatus("denied");
       return;
@@ -153,6 +153,10 @@ function MtrPage() {
       { enableHighAccuracy: true, maximumAge: 300000, timeout: 8000 },
     );
   }, []);
+
+  useEffect(() => {
+    locateNearestStation();
+  }, [locateNearestStation]);
 
   const stationDetails = STATION_DETAILS[sta];
   const locationLabel = locationStatus === "loading" ? "定位中…" : locationStatus === "ready" && nearestDistance != null ? `距你約 ${nearestDistance.toFixed(1)} 公里` : "未使用定位";
@@ -239,7 +243,19 @@ function MtrPage() {
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="flex items-center gap-2 font-semibold"><MapPin size={16} className="text-primary" />{STATIONS[sta]}站詳情</p>
-            <p className="mt-1 text-muted-foreground">車站代號 {sta} · {locationLabel}</p>
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-muted-foreground">
+              <span>車站代號 {sta} · {locationLabel}</span>
+              <button
+                type="button"
+                onClick={locateNearestStation}
+                disabled={locationStatus === "loading"}
+                className="inline-flex items-center gap-1 rounded-lg border border-primary/30 px-2 py-1 text-xs font-semibold text-primary transition-colors hover:bg-primary/10 disabled:cursor-wait disabled:opacity-60"
+                aria-label="重新定位最近的地鐵站"
+              >
+                <LocateFixed size={13} className={locationStatus === "loading" ? "animate-spin" : undefined} />
+                {locationStatus === "loading" ? "定位中…" : "重新定位"}
+              </button>
+            </div>
           </div>
           <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-semibold text-primary">最近車站</span>
         </div>
