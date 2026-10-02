@@ -4,8 +4,20 @@ import { useServerFn } from "@tanstack/react-start";
 import { Clock, Wallet, MapPin, TramFront } from "lucide-react";
 import { getLrtNetwork, getLrtSchedule, getLrtFare, type LrtRoute } from "@/lib/lrt.functions";
 
-const MIN_PER_STOP = 1.8;
 const LRT_COLOR = "#D3A809";
+const LRT_MINUTES_PER_STOP: Record<string, number> = {
+  "505": 2.1,
+  "507": 1.9,
+  "610": 2.2,
+  "614": 2.0,
+  "615": 2.0,
+  "705": 1.8,
+  "706": 1.8,
+  "751": 2.1,
+  "761P": 2.3,
+};
+const getMinutesPerStop = (route: string) => LRT_MINUTES_PER_STOP[route] ?? 2;
+
 const LRT_ROUTE_COLORS = ["#0072BC", "#E87511", "#7B3F98", "#008A45", "#D33F49", "#008C95", "#B06A00"];
 
 const routeColor = (route: string) => LRT_ROUTE_COLORS[(Number(route) || 0) % LRT_ROUTE_COLORS.length];
@@ -48,8 +60,18 @@ export function LrtPanel() {
     return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b, "en", { numeric: true }));
   }, [routes]);
 
-  const fi = stops.findIndex((s) => s.id === fromId), ti = stops.findIndex((s) => s.id === toId);
+  const tripRoute = useMemo(() => {
+    if (tab !== "route" || !from || !to) return cur;
+    return routes.find((route) => {
+      const fromIndex = route.stops.findIndex((stop) => stop.id === from);
+      const toIndex = route.stops.findIndex((stop) => stop.id === to);
+      return fromIndex >= 0 && toIndex > fromIndex;
+    }) ?? cur;
+  }, [cur, from, routes, tab, to]);
+  const tripStops = tripRoute?.stops ?? stops;
+  const fi = tripStops.findIndex((s) => s.id === fromId), ti = tripStops.findIndex((s) => s.id === toId);
   const nStops = fi >= 0 && ti > fi ? ti - fi : 0;
+  const tripMinutes = tripRoute ? Math.round(nStops * getMinutesPerStop(tripRoute.route)) : 0;
   const sched = useQuery({
     queryKey: ["lrt-sched", tab === "route" ? fromId : staId],
     queryFn: () => schedFn({ data: { id: tab === "route" ? fromId : staId } }),
@@ -62,7 +84,7 @@ export function LrtPanel() {
     enabled: nStops > 0,
   });
   const nextOnRoute = sched.data?.flatMap((p) => p.trains.map((t) => ({ ...t, platform: p.platform })))
-    .find((t) => t.route === cur?.route);
+    .find((t) => t.route === tripRoute?.route);
   const staInfo = allStations.find(([id]) => id === staId)?.[1];
 
   if (net.isLoading) return <p className="px-5 py-6 text-sm text-muted-foreground">載入輕鐵路線中…</p>;
@@ -129,10 +151,10 @@ export function LrtPanel() {
         <div className="mx-5 mt-3 rounded-2xl border bg-card p-4">
           <p className="flex items-center gap-2 font-semibold"><Clock size={16} className="text-primary" />預計行程時間</p>
           {nStops > 0 ? <>
-            <p className="mt-1 text-2xl font-bold">約 {Math.round(nStops * MIN_PER_STOP)} 分鐘</p>
-            <p className="text-xs text-muted-foreground">{nStops} 個站（每站約 {MIN_PER_STOP} 分鐘估算）</p>
-            <p className="mt-2 text-sm">下班 {cur.route} 號：<b className="text-primary">{nextOnRoute ? `${nextOnRoute.time}（${nextOnRoute.platform} 號月台）` : sched.isLoading ? "載入中…" : "暫無資料"}</b></p>
-          </> : <p className="mt-1 text-sm text-muted-foreground">請揀喺起點之後嘅終點（此方向）</p>}
+            <p className="mt-1 text-2xl font-bold">約 {tripMinutes} 分鐘</p>
+            <p className="text-xs text-muted-foreground">{tripRoute?.route} 號綫 · {tripRoute?.dir}方向 · {nStops} 個站（按該綫站間平均行車時間計算）</p>
+            <p className="mt-2 text-sm">下班 {tripRoute?.route} 號：<b className="text-primary">{nextOnRoute ? `${nextOnRoute.time}（${nextOnRoute.platform} 號月台）` : sched.isLoading ? "載入中…" : "暫無資料"}</b></p>
+          </> : <p className="mt-1 text-sm text-muted-foreground">請選擇同一條輕鐵路線上、位於起點之後的終點</p>}
           {fare.data && (
             <div className="mt-3 border-t pt-3">
               <p className="flex items-center gap-2 font-semibold"><Wallet size={16} className="text-primary" />車資</p>
