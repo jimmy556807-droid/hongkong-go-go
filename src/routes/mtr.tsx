@@ -65,10 +65,11 @@ type Line = (typeof LINES)[number];
 
 const LINE_BY_CODE = Object.fromEntries(LINES.map((l) => [l.code, l]));
 
-function StationOptions() {
+function StationOptions({ mode }: { mode: "mtr" | "lrt" }) {
+  const visibleLines = LINES.filter((l) => mode === "lrt" ? l.code.startsWith("LRT") : !l.code.startsWith("LRT"));
   return (
     <>
-      {LINES.map((l) => (
+      {visibleLines.map((l) => (
         <optgroup key={l.code} label={l.name}>
           {l.stations.map((code) => (
             <option key={`${l.code}-${code}`} value={code} style={{ color: l.color }}>
@@ -144,6 +145,7 @@ function planRoute(from: string, to: string): { segs: Seg[]; stops: number; tran
 function toHkIso(t: string) { return t.replace(" ", "T") + "+08:00"; }
 
 function MtrPage() {
+  const [mode, setMode] = useState<"mtr" | "lrt">("mtr");
   const [line, setLine] = useState<Line>(LINES[0]!);
   const [sta, setSta] = useState("CEN");
   const [dest, setDest] = useState("TSW");
@@ -217,7 +219,16 @@ function MtrPage() {
 
   return (
     <div>
-      <PageHeader title="地鐵" sub="港鐵實時班次" />
+      <PageHeader title="地鐵及輕鐵" sub="港鐵實時班次" />
+      <div className="mx-5 mt-3 grid grid-cols-2 rounded-2xl bg-muted p-1" role="tablist" aria-label="交通工具分類">
+        {([['mtr', '地鐵'], ['lrt', '輕鐵']] as const).map(([value, label]) => (
+          <button key={value} onClick={() => {
+            setMode(value);
+            const firstLine = LINES.find((candidate) => value === "lrt" ? candidate.code.startsWith("LRT") : !candidate.code.startsWith("LRT"))!;
+            selectLine(firstLine);
+          }} className={`rounded-xl px-2 py-2 text-sm font-semibold transition-colors ${mode === value ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`} aria-pressed={mode === value}>{label}</button>
+        ))}
+      </div>
       <div className="mx-5 mt-3 grid grid-cols-3 rounded-2xl bg-muted p-1" role="tablist" aria-label="地鐵功能分類">
         {([['route', '路線規劃'], ['trains', '下班列車'], ['station', '車站詳情']] as const).map(([value, label]) => (
           <button key={value} role="tab" aria-selected={activeTab === value} onClick={() => setActiveTab(value)}
@@ -228,7 +239,7 @@ function MtrPage() {
       </div>
 
       <div className="flex gap-2 overflow-x-auto px-5 pb-2 pt-3">
-        {LINES.map((l) => (
+        {LINES.filter((l) => mode === "lrt" ? l.code.startsWith("LRT") : !l.code.startsWith("LRT")).map((l) => (
           <button key={l.code} onClick={() => selectLine(l)}
             className="shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium"
             style={line.code === l.code ? { background: l.color, color: "white", borderColor: l.color } : { borderColor: l.color }}>
@@ -241,12 +252,12 @@ function MtrPage() {
       <div className="mx-5 mt-2 grid grid-cols-2 gap-2">
           <label className="text-xs text-muted-foreground">起點（按路線選擇）
           <select value={sta} onChange={(e) => setSta(e.target.value)} className="mt-1 w-full rounded-xl border bg-card px-3 py-3 text-base font-semibold text-foreground">
-            <StationOptions />
+            <StationOptions mode={mode} />
           </select>
         </label>
         <label className="text-xs text-muted-foreground">終點（按路線選擇）
           <select value={dest} onChange={(e) => setDest(e.target.value)} className="mt-1 w-full rounded-xl border bg-card px-3 py-3 text-base font-semibold text-foreground">
-            <StationOptions />
+            <StationOptions mode={mode} />
           </select>
         </label>
       </div>

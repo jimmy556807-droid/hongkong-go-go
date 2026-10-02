@@ -7,6 +7,7 @@ export const STATIONS: Record<string, string> = {
   OCP: "海洋公園", WCH: "黃竹坑", LET: "利東", SOH: "海怡半島",
   EXC: "會展", HUH: "紅磡", MKK: "旺角東", TAW: "大圍", SHT: "沙田", FOT: "火炭", RAC: "馬場", UNI: "大學", TAP: "大埔墟", TWO: "太和", FAN: "粉嶺", SHS: "上水", LOW: "羅湖", LMC: "落馬洲",
   WKS: "烏溪沙", MOS: "馬鞍山", HEO: "恆安", TSH: "大水坑", SHM: "石門", CIO: "第一城", STW: "沙田圍", CKT: "車公廟", HIK: "顯徑", KAT: "啟德", SUW: "宋皇臺", TKW: "土瓜灣", ETS: "尖東", AUS: "柯士甸", TWW: "荃灣西", KSR: "錦上路", YUL: "元朗", LOP: "朗屏", TIS: "天水圍", SIH: "兆康", TUM: "屯門",
+  T01: "屯門碼頭", T02: "美樂", T03: "蝴蝶", T04: "輕鐵車廠", T05: "龍門", T06: "兆禧", T07: "屯門泳池", T08: "豐景園", T09: "安定", T10: "友愛", T11: "市中心", T12: "屯門醫院", T13: "杯渡", T14: "何福堂", T15: "新墟", T16: "景峰", T17: "鳴琴", T18: "石排", T19: "山景", T20: "大興", T21: "蔡意橋", T22: "良景", T23: "田景", T24: "建生", T25: "青松", T26: "青山村", T27: "藍地", T28: "泥圍", T29: "鍾屋村", T30: "洪水橋", T31: "塘坊村", T32: "屏山", T33: "坑尾村", T34: "天水圍", T35: "天慈", T36: "天湖", T37: "天耀", T38: "樂湖", T39: "銀座", T40: "市中心（天水圍）", T41: "天瑞", T42: "頌富", T43: "天富", T44: "翠湖", T45: "天恒", T46: "濕地公園", T47: "天秀",
 };
 
 export type StationDetails = {
@@ -68,4 +69,6 @@ export const LINES: { code: string; name: string; color: string; stations: strin
   { code: "TCL", name: "東涌綫", color: "#F7943E", stations: ["HOK", "KOW", "OLY", "NAC", "LAK", "TSY", "SUN", "TUC"] },
   { code: "AEL", name: "機場快綫", color: "#00888A", stations: ["HOK", "KOW", "TSY", "AIR", "AWE"] },
   { code: "SIL", name: "南港島綫", color: "#BAC429", stations: ["ADM", "OCP", "WCH", "LET", "SOH"] },
+  { code: "LRT1", name: "輕鐵屯門主綫", color: "#F5A623", stations: ["T01", "T02", "T03", "T04", "T05", "T06", "T07", "T08", "T09", "T10", "T11", "T12", "T13", "T14", "T15", "T16", "T17", "T18", "T19", "T20", "T21", "T22", "T23", "T24", "T25", "T26", "T27", "T28", "T29", "T30", "T31", "T32", "T33", "T34"] },
+  { code: "LRT2", name: "輕鐵天水圍綫", color: "#E85D75", stations: ["T34", "T35", "T36", "T37", "T38", "T39", "T40", "T41", "T42", "T43", "T44", "T45", "T46", "T47"] },
 ];
