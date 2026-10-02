@@ -24,11 +24,31 @@ export type Plan = {
   tip: string;
 };
 
-const Input = z.object({
-  from: z.string().min(1).max(60),
-  to: z.string().min(1).max(60),
-  prefs: z.array(z.string().max(20)).max(6),
-});
+const Input = z
+  .object({
+    from: z.string().trim().min(1).max(60),
+    to: z.string().trim().min(1).max(60),
+    prefs: z.array(z.string().trim().max(20)).max(6),
+  })
+  .superRefine((value, ctx) => {
+    const stationNames = new Set(Object.values(STATIONS));
+    const stationCodes = new Set(Object.keys(STATIONS));
+    for (const [field, input] of [
+      ["from", value.from],
+      ["to", value.to],
+    ] as const) {
+      if (!stationNames.has(input) && !stationCodes.has(input)) {
+        ctx.addIssue({ code: "custom", path: [field], message: "請選擇有效的車站" });
+      }
+    }
+  });
+
+const safeText = (value: unknown, max: number) =>
+  typeof value === "string" ? value.replace(/[<>`]/g, "").trim().slice(0, max) : "";
+const safeMinutes = (value: unknown) => {
+  const number = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(number) ? Math.min(240, Math.max(0, Math.round(number))) : 0;
+};
 
 async function readStream(res: Response) {
   const reader = res.body!.getReader();
@@ -83,7 +103,7 @@ async function liveBus(route: string, co: "KMB" | "CTB", stopName: string) {
     const list: any[] = (x?.data ?? []).filter((e: any) => e.eta);
     if (!list.length) return "現時暫無班次";
     const hit = stopName
-      ? list.find((e: any) => String(e.dest_tc ?? "").includes(stopName)) ?? list[0]
+      ? (list.find((e: any) => String(e.dest_tc ?? "").includes(stopName)) ?? list[0])
       : list[0];
     const m = Math.round((new Date(hit.eta).getTime() - Date.now()) / 60000);
     return m <= 0 ? "車輛即將到站" : `下班車約 ${m} 分鐘`;
@@ -174,7 +194,10 @@ ${lines}
       if (res.status === 401) return { plans: [], error: "DeepSeek 金鑰無效，請更新。" };
       if (res.status === 402) return { plans: [], error: "DeepSeek 帳戶餘額不足。" };
       if (res.status === 429) return { plans: [], error: "查詢太頻密，請稍等再試。" };
-      return { plans: [], error: `DeepSeek 錯誤 (${res.status})${body ? `：${body.slice(0, 120)}` : ""}` };
+      return {
+        plans: [],
+        error: `DeepSeek 錯誤 (${res.status})${body ? `：${body.slice(0, 120)}` : ""}`,
+      };
     }
 
     const text = await readStream(res);
@@ -185,24 +208,31 @@ ${lines}
       return { plans: [], error: "建議格式有誤，請再試一次。" };
     }
 
-    const plans: Plan[] = (parsed?.plans ?? []).slice(0, 1).map((p: any) => ({
-      title: String(p?.title ?? "建議路線"),
-      totalMins: Number(p?.totalMins) || 0,
-      fare: String(p?.fare ?? ""),
-      tags: (p?.tags ?? []).slice(0, 3).map(String),
-      tip: String(p?.tip ?? ""),
-      legs: (p?.legs ?? []).slice(0, 8).map((l: any) => ({
-        mode: (["mtr", "bus", "ferry", "walk"].includes(l?.mode) ? l.mode : "walk") as Leg["mode"],
-        name: String(l?.name ?? ""),
-        from: String(l?.from ?? ""),
-        to: String(l?.to ?? ""),
-        mins: Number(l?.mins) || 0,
-        note: String(l?.note ?? ""),
-        line: l?.line ? String(l.line) : undefined,
-        sta: l?.sta ? String(l.sta) : undefined,
-        co: l?.co === "CTB" ? "CTB" : l?.co === "KMB" ? "KMB" : undefined,
-      })),
-    }));
+    const plans: Plan[] = (Array.isArray(parsed?.plans) ? parsed.plans : [])
+      .slice(0, 1)
+      .map((p: any) => ({
+        title: safeText(p?.title, 80) || "建議路線",
+        totalMins: safeMinutes(p?.totalMins),
+        fare: safeText(p?.fare, 40),
+        tags: (Array.isArray(p?.tags) ? p.tags : [])
+          .slice(0, 3)
+          .map((tag: unknown) => safeText(tag, 24))
+          .filter(Boolean),
+        tip: safeText(p?.tip, 160),
+        legs: (Array.isArray(p?.legs) ? p.legs : []).slice(0, 8).map((l: any) => ({
+          mode: (["mtr", "bus", "ferry", "walk"].includes(l?.mode)
+            ? l.mode
+            : "walk") as Leg["mode"],
+          name: safeText(l?.name, 60),
+          from: safeText(l?.from, 60),
+          to: safeText(l?.to, 60),
+          mins: safeMinutes(l?.mins),
+          note: safeText(l?.note, 120),
+          line: l?.line ? safeText(l.line, 12) : undefined,
+          sta: l?.sta ? safeText(l.sta, 12) : undefined,
+          co: l?.co === "CTB" ? "CTB" : l?.co === "KMB" ? "KMB" : undefined,
+        })),
+      }));
 
     await Promise.all(
       plans.flatMap((p) =>
