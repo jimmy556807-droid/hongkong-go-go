@@ -217,7 +217,7 @@ export const getNearbyRoutes = createServerFn({ method: "GET" })
     const m = new Map<string, { route: string; dir: "outbound" | "inbound"; dest: string; stopName: string; dist: number; etas: string[]; co: "KMB" | "CTB" }>();
     etas.forEach((x, i) => {
       for (const e of x?.data ?? []) {
-        const key = String(e.route) + String(e.dir);
+        const key = `${stop.co}:${String(e.route)}:${String(e.dir)}`;
         const cur = m.get(key);
         const stop = near[i]!;
         if (!cur || stop.dist < cur.dist) {
