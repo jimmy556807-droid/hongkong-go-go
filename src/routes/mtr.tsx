@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useMemo, useState } from "react";
-import { Clock, MapPin, ArrowRight, Wallet } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Clock, MapPin, ArrowRight, Wallet, Navigation, DoorOpen, LocateFixed } from "lucide-react";
 import { getMtr } from "@/lib/hk.functions";
 import { getMtrFare } from "@/lib/fare.functions";
 
@@ -31,7 +31,7 @@ function MtrFareBox({ from, to }: { from: string; to: string }) {
     </div>
   );
 }
-import { LINES, STATIONS } from "@/lib/mtr-data";
+import { LINES, STATIONS, STATION_DETAILS } from "@/lib/mtr-data";
 import { PageHeader, Countdown, useNow } from "@/components/BottomNav";
 
 export const Route = createFileRoute("/mtr")({
@@ -122,7 +122,38 @@ function MtrPage() {
   const [sta, setSta] = useState("CEN");
   const [dest, setDest] = useState("TSW");
   const [activeTab, setActiveTab] = useState<"route" | "trains" | "station">("route");
+  const [locationStatus, setLocationStatus] = useState<"idle" | "loading" | "ready" | "denied">("idle");
+  const [nearestDistance, setNearestDistance] = useState<number | null>(null);
   const now = useNow();
+
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      setLocationStatus("denied");
+      return;
+    }
+    setLocationStatus("loading");
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        const nearest = Object.entries(STATION_DETAILS).reduce<{ code: string; distance: number } | null>((best, [code, details]) => {
+          const [lat, lng] = details.coordinates;
+          const distance = Math.sqrt(Math.pow((coords.latitude - lat) * 111, 2) + Math.pow((coords.longitude - lng) * 102, 2));
+          return !best || distance < best.distance ? { code, distance } : best;
+        }, null);
+        if (nearest) {
+          setSta(nearest.code);
+          setNearestDistance(nearest.distance);
+          const nearestLine = LINES.find((candidate) => candidate.stations.includes(nearest.code));
+          if (nearestLine) setLine(nearestLine);
+        }
+        setLocationStatus("ready");
+      },
+      () => setLocationStatus("denied"),
+      { enableHighAccuracy: true, maximumAge: 300000, timeout: 8000 },
+    );
+  }, []);
+
+  const stationDetails = STATION_DETAILS[sta];
+  const locationLabel = locationStatus === "loading" ? "定位中…" : locationStatus === "ready" && nearestDistance != null ? `距你約 ${nearestDistance.toFixed(1)} 公里` : "未使用定位";
   const fn = useServerFn(getMtr);
 
   const route = useMemo(() => planRoute(sta, dest), [sta, dest]);
@@ -202,32 +233,34 @@ function MtrPage() {
       </>}
 
       {activeTab === "station" && <>
-      <div className="mx-5 mt-3 rounded-2xl border bg-card p-4 text-sm">
-        <p className="flex items-center gap-2 font-semibold"><MapPin size={16} className="text-primary" />{STATIONS[sta]}站 詳情</p>
-        <p className="mt-1 text-muted-foreground">車站代號 {sta} · {boardLine.name}第 {boardLine.stations.indexOf(sta) + 1} 站</p>
-        {otherLines.length > 0 && (
-          <div className="mt-2 flex flex-wrap items-center gap-2">轉乘：
-            {otherLines.map((l) => (
-              <button key={l.code} onClick={() => setLine(l)} className="rounded-full px-2 py-0.5 text-xs text-white" style={{ background: l.color }}>{l.name}</button>
-            ))}
+      <div className="mx-5 mt-3 rounded-2xl border bg-card p-4 text-sm shadow-sm">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="flex items-center gap-2 font-semibold"><MapPin size={16} className="text-primary" />{STATIONS[sta]}站詳情</p>
+            <p className="mt-1 text-muted-foreground">車站代號 {sta} · {locationLabel}</p>
           </div>
-        )}
+          <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-semibold text-primary">最近車站</span>
+        </div>
+        {otherLines.length > 0 && <div className="mt-3 flex flex-wrap items-center gap-2">轉乘：{otherLines.map((l) => <button key={l.code} onClick={() => setLine(l)} className="rounded-full px-2 py-0.5 text-xs text-white" style={{ background: l.color }}>{l.name}</button>)}</div>}
       </div>
 
-      {line.firstLast && (
-        <div className="mx-5 mt-3 rounded-2xl border bg-card p-4 text-sm">
-          <p className="font-semibold">首末班車（{line.name}，約數）</p>
-          <p className="mt-1">往{STATIONS[line.stations[line.stations.length - 1]!]}：首班 {line.firstLast.up[0]} · 尾班 {line.firstLast.up[1]}</p>
-          <p>往{STATIONS[line.stations[0]!]}：首班 {line.firstLast.down[0]} · 尾班 {line.firstLast.down[1]}</p>
-          <p className="mt-1 text-xs text-muted-foreground">各站實際時間略有不同，以港鐵公布為準</p>
-        </div>
-      )}
+      <div className="mx-5 mt-3 grid grid-cols-2 gap-3">
+        <div className="rounded-2xl border bg-card p-4 text-sm"><p className="flex items-center gap-2 font-semibold"><Clock size={16} className="text-primary" />服務時間</p><p className="mt-2 text-lg font-bold">{stationDetails?.openingHours ?? "05:50 – 01:00"}</p><p className="mt-1 text-xs text-muted-foreground">實際開放時間或因特別安排調整</p></div>
+        <div className="rounded-2xl border bg-card p-4 text-sm"><p className="flex items-center gap-2 font-semibold"><Navigation size={16} className="text-primary" />途經路線</p><p className="mt-2 font-bold">{boardLine.name}</p><p className="mt-1 text-xs text-muted-foreground">第 {boardLine.stations.indexOf(sta) + 1} 站</p></div>
+      </div>
+
+      <div className="mx-5 mt-3 rounded-2xl border bg-card p-4 text-sm">
+        <p className="flex items-center gap-2 font-semibold"><DoorOpen size={16} className="text-primary" />出口資訊</p>
+        <div className="mt-3 space-y-2">{(stationDetails?.exits ?? [{ code: "—", places: "出口資料載入中" }]).map((exit) => <div key={exit.code} className="flex gap-3 rounded-xl bg-muted/60 px-3 py-2.5"><span className="min-w-8 rounded-md bg-card px-1.5 py-0.5 text-center font-bold text-primary shadow-sm">{exit.code}</span><span className="text-muted-foreground">{exit.places}</span></div>)}</div>
+      </div>
+
+      {line.firstLast && <div className="mx-5 mt-3 rounded-2xl border bg-card p-4 text-sm"><p className="font-semibold">首末班車（{line.name}，約數）</p><p className="mt-1">往{STATIONS[line.stations[line.stations.length - 1]!]}：首班 {line.firstLast.up[0]} · 尾班 {line.firstLast.up[1]}</p><p>往{STATIONS[line.stations[0]!]}：首班 {line.firstLast.down[0]} · 尾班 {line.firstLast.down[1]}</p><p className="mt-1 text-xs text-muted-foreground">各站實際時間略有不同，以港鐵公布為準</p></div>}
       </>}
 
       {activeTab === "trains" && <>
       <div className="mx-5 mt-3 rounded-2xl border bg-card p-4 text-sm">
-        <p className="flex items-center gap-2 font-semibold"><Clock size={16} className="text-primary" />下班列車</p>
-        <p className="mt-1 text-muted-foreground">{STATIONS[sta]}站 · {boardLine.name} · 每 20 秒更新</p>
+        <p className="flex items-center gap-2 font-semibold"><Clock size={16} className="text-primary" />下班列車 <span className="ml-auto flex items-center gap-1 text-xs font-medium text-primary"><LocateFixed size={13} />最近車站</span></p>
+        <p className="mt-1 text-muted-foreground">{STATIONS[sta]}站 · {boardLine.name} · {locationLabel} · 每 20 秒更新</p>
       </div>
 
       {q.isLoading && <p className="mx-5 mt-6 text-muted-foreground">載入中…</p>}
