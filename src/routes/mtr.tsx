@@ -6,6 +6,31 @@ import { Clock, MapPin, ArrowRight, Wallet, Navigation, DoorOpen, LocateFixed } 
 import { getMtr } from "@/lib/hk.functions";
 import { getMtrFare } from "@/lib/fare.functions";
 
+const AIRPORT_EXPRESS_FARES: Record<string, { octopus: number; single: number }> = {
+  "HOK-AIR": { octopus: 110, single: 120 },
+  "KOW-AIR": { octopus: 100, single: 105 },
+  "TSY-AIR": { octopus: 65, single: 75 },
+  "HOK-AWE": { octopus: 110, single: 120 },
+  "KOW-AWE": { octopus: 100, single: 105 },
+  "TSY-AWE": { octopus: 65, single: 75 },
+};
+
+function AirportExpressFareBox({ from, to }: { from: string; to: string }) {
+  const fare = AIRPORT_EXPRESS_FARES[`${from}-${to}`] ?? AIRPORT_EXPRESS_FARES[`${to}-${from}`];
+  if (!fare) return null;
+
+  return (
+    <div className="mt-3 border-t pt-3">
+      <p className="flex items-center gap-2 font-semibold"><Wallet size={16} className="text-[#00888A]" />機場快綫車資詳情</p>
+      <div className="mt-2 grid grid-cols-2 gap-1.5 text-xs">
+        <div className="flex justify-between rounded-lg bg-muted/60 px-2.5 py-1.5"><span className="text-muted-foreground">八達通成人</span><b>${fare.octopus.toFixed(1)}</b></div>
+        <div className="flex justify-between rounded-lg bg-muted/60 px-2.5 py-1.5"><span className="text-muted-foreground">單程票成人</span><b>${fare.single.toFixed(1)}</b></div>
+      </div>
+      <p className="mt-1.5 text-[11px] text-muted-foreground">適用於香港／九龍／青衣往返機場或博覽館；機場快綫不設學生及小童單程票此項顯示。</p>
+    </div>
+  );
+}
+
 function MtrFareBox({ from, to }: { from: string; to: string }) {
   const fn = useServerFn(getMtrFare);
   const q = useQuery({ queryKey: ["mtrFare", from, to], queryFn: () => fn({ data: { from, to } }), staleTime: 86400000 });
@@ -246,6 +271,9 @@ function MtrPage() {
             </div>
             {waitMin != null && <p className="mt-2 text-muted-foreground">下班車 {Math.round(waitMin)} 分鐘後，預計 {new Date(now + (waitMin + ride) * 60000).toLocaleTimeString("zh-HK", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Hong_Kong" })} 到達</p>}
             <MtrFareBox from={sta} to={dest} />
+            {route.segs.filter((segment) => segment.line.code === "AEL").map((segment) => (
+              <AirportExpressFareBox key={`${segment.from}-${segment.to}`} from={segment.from} to={segment.to} />
+            ))}
           </>
         )}
       </div>
