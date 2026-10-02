@@ -241,7 +241,7 @@ function MtrPage() {
       </div>
 
       <div className="flex gap-2 overflow-x-auto px-5 pb-2 pt-3">
-        {LINES.filter((l) => mode === "lrt" ? l.code.startsWith("LRT") : !l.code.startsWith("LRT")).map((l) => (
+        {LINES.filter((l) => !l.code.startsWith("LRT")).map((l) => (
           <button key={l.code} onClick={() => selectLine(l)}
             className="shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium"
             style={line.code === l.code ? { background: l.color, color: "white", borderColor: l.color } : { borderColor: l.color }}>

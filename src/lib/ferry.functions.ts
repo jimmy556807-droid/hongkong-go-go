@@ -44,9 +44,9 @@ const KAITO_DETAILS: Array<{ match: string; code: string; operator: string; phon
 function splitNote(raw: string): { label: string; note: string } {
   const text = (raw ?? "").trim();
   const sentence = text.match(/^(.*?)((?:單程|去程|前往|由).*收費.*)$/);
-  if (sentence && sentence[1]) return { label: sentence[1].trim(), note: sentence[2].replace(/^\(|\)$/g, "").trim() };
+  if (sentence && sentence[1]) return { label: sentence[1].trim(), note: (sentence[2] ?? "").replace(/^\(|\)$/g, "").trim() };
   const paren = text.match(/^(.*?)\(([^()]*收費[^()]*)\)$/);
-  if (paren) return { label: paren[1].trim(), note: paren[2].trim() };
+  if (paren) return { label: (paren[1] ?? "").trim(), note: (paren[2] ?? "").trim() };
   return { label: text, note: "" };
 }
 
