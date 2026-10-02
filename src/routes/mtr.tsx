@@ -58,8 +58,8 @@ function StationOptions() {
       {LINES.map((l) => (
         <optgroup key={l.code} label={l.name}>
           {l.stations.map((code) => (
-            <option key={`${l.code}-${code}`} value={code}>
-              {STATIONS[code] ?? code}
+            <option key={`${l.code}-${code}`} value={code} style={{ color: l.color }}>
+              ● {STATIONS[code] ?? code}
             </option>
           ))}
         </optgroup>
@@ -258,16 +258,6 @@ function MtrPage() {
             <p className="flex items-center gap-2 font-semibold"><MapPin size={16} className="text-primary" />{STATIONS[sta]}站詳情</p>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-muted-foreground">
               <span>車站代號 {sta} · {locationLabel}</span>
-              <button
-                type="button"
-                onClick={locateNearestStation}
-                disabled={locationStatus === "loading"}
-                className="inline-flex items-center gap-1 rounded-lg border border-primary/30 px-2 py-1 text-xs font-semibold text-primary transition-colors hover:bg-primary/10 disabled:cursor-wait disabled:opacity-60"
-                aria-label="重新定位最近的地鐵站"
-              >
-                <LocateFixed size={13} className={locationStatus === "loading" ? "animate-spin" : undefined} />
-                {locationStatus === "loading" ? "定位中…" : "重新定位"}
-              </button>
             </div>
           </div>
           <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-semibold text-primary">最近車站</span>
@@ -290,7 +280,21 @@ function MtrPage() {
 
       {activeTab === "trains" && <>
       <div className="mx-5 mt-3 rounded-2xl border bg-card p-4 text-sm">
-        <p className="flex items-center gap-2 font-semibold"><Clock size={16} className="text-primary" />下班列車 <span className="ml-auto flex items-center gap-1 text-xs font-medium text-primary"><LocateFixed size={13} />最近車站</span></p>
+        <div className="flex items-center gap-2 font-semibold">
+          <Clock size={16} className="text-primary" />
+          <span>下班列車</span>
+          <span className="ml-auto flex items-center gap-1 text-xs font-medium text-primary"><LocateFixed size={13} />最近車站</span>
+          <button
+            type="button"
+            onClick={locateNearestStation}
+            disabled={locationStatus === "loading"}
+            className="inline-flex items-center gap-1 rounded-lg border border-primary/30 px-2 py-1 text-xs font-semibold text-primary transition-colors hover:bg-primary/10 disabled:cursor-wait disabled:opacity-60"
+            aria-label="重新定位最近的地鐵站"
+          >
+            <LocateFixed size={13} className={locationStatus === "loading" ? "animate-spin" : undefined} />
+            {locationStatus === "loading" ? "定位中…" : "重新定位"}
+          </button>
+        </div>
         <p className="mt-1 text-muted-foreground">{STATIONS[sta]}站 · {boardLine.name} · {locationLabel} · 每 20 秒更新</p>
       </div>
 
