@@ -213,13 +213,13 @@ export const getNearbyRoutes = createServerFn({ method: "GET" })
     }
     stops.sort((a, b) => a.dist - b.dist);
     const near = stops.slice(0, 12);
-    const etas = await Promise.all(near.map((s) => s.co === "KMB" ? j(`${KMB}/stop-eta/${s.id}`).catch(() => null) : j(`${CTB}/eta/CTB/${s.id}/`).catch(() => null)));
+    const etas = await Promise.all(near.map((s) => s.co === "KMB" ? j(`${KMB}/stop-eta/${s.id}`).catch(() => null) : j(`${CTB}/eta/CTB/${s.id}`).catch(() => null)));
     const m = new Map<string, { route: string; dir: "outbound" | "inbound"; dest: string; stopName: string; dist: number; etas: string[]; co: "KMB" | "CTB" }>();
     etas.forEach((x, i) => {
+      const stop = near[i]!;
       for (const e of x?.data ?? []) {
-        const key = String(e.route) + String(e.dir);
+        const key = `${stop.co}:${String(e.route)}:${String(e.dir)}`;
         const cur = m.get(key);
-        const stop = near[i]!;
         if (!cur || stop.dist < cur.dist) {
           m.set(key, {
             route: String(e.route),
@@ -301,7 +301,7 @@ export const getNearbyGmbRoutes = createServerFn({ method: "GET" })
   });
 
 export const getGmbEta = createServerFn({ method: "GET" })
-  .inputValidator((d) => z.object({ routeId: z.string().regex(/^\\d+$/), routeSeq: z.number().int().min(1).max(9).default(1) }).parse(d))
+  .inputValidator((d) => z.object({ routeId: z.string().regex(/^\d+$/), routeSeq: z.number().int().min(1).max(9).default(1) }).parse(d))
   .handler(async ({ data }) => {
     const r = await fetch(`${GMB_API}/route-stop/${data.routeId}/${data.routeSeq}`);
     if (!r.ok) throw new Error("無法取得專綫小巴車站資料");
