@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Clock, MapPin, ArrowRight, Wallet, Navigation, DoorOpen, LocateFixed } from "lucide-react";
 import { getMtr } from "@/lib/hk.functions";
 import { getMtrFare } from "@/lib/fare.functions";
+import { LrtPanel } from "@/components/LrtPanel";
 const AIRPORT_EXPRESS_FARES: Record<string, { octopus: number; single: number }> = {
   "HOK-AIR": { octopus: 110, single: 120 },
   "KOW-AIR": { octopus: 100, single: 105 },
@@ -229,6 +230,7 @@ function MtrPage() {
           }} className={`rounded-xl px-2 py-2 text-sm font-semibold transition-colors ${mode === value ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`} aria-pressed={mode === value}>{label}</button>
         ))}
       </div>
+      {mode === "lrt" ? <LrtPanel /> : <>
       <div className="mx-5 mt-3 grid grid-cols-3 rounded-2xl bg-muted p-1" role="tablist" aria-label="地鐵功能分類">
         {([['route', '路線規劃'], ['trains', '下班列車'], ['station', '車站詳情']] as const).map(([value, label]) => (
           <button key={value} role="tab" aria-selected={activeTab === value} onClick={() => setActiveTab(value)}
@@ -239,7 +241,7 @@ function MtrPage() {
       </div>
 
       <div className="flex gap-2 overflow-x-auto px-5 pb-2 pt-3">
-        {LINES.filter((l) => mode === "lrt" ? l.code.startsWith("LRT") : !l.code.startsWith("LRT")).map((l) => (
+        {LINES.filter((l) => !l.code.startsWith("LRT")).map((l) => (
           <button key={l.code} onClick={() => selectLine(l)}
             className="shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium"
             style={line.code === l.code ? { background: l.color, color: "white", borderColor: l.color } : { borderColor: l.color }}>
@@ -347,6 +349,7 @@ function MtrPage() {
           </div>
         ))}
       </div>
+      </>}
       </>}
     </div>
   );
