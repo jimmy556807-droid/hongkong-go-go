@@ -13,6 +13,7 @@ export const STATIONS: Record<string, string> = {
 export type StationDetails = {
   coordinates: [number, number];
   openingHours: string;
+  toiletLocation?: string;
   exits: { code: string; places: string }[];
 };
 
@@ -43,13 +44,28 @@ const ADDITIONAL_STATION_COORDINATES: Record<string, [number, number]> = {
   KOW: [22.3047, 114.1615], OLY: [22.3188, 114.1602], NAC: [22.3275, 114.1547], TSY: [22.3588, 114.1078], SUN: [22.3329, 114.0296], TUC: [22.2883, 113.942], AIR: [22.315, 113.9365], AWE: [22.3215, 113.94], OCP: [22.2476, 114.1733], WCH: [22.2473, 114.1688], LET: [22.2431, 114.155], SOH: [22.242, 114.1491], EXC: [22.2827, 114.1736], HUH: [22.3028, 114.182], MKK: [22.3225, 114.1722], TAW: [22.373, 114.1781], SHT: [22.377, 114.186], FOT: [22.395, 114.198], RAC: [22.4, 114.2], UNI: [22.413, 114.21], TAP: [22.444, 114.17], TWO: [22.451, 114.16], FAN: [22.492, 114.139], SHS: [22.501, 114.127], LOW: [22.529, 114.115], LMC: [22.514, 114.067], WKS: [22.425, 114.243], MOS: [22.425, 114.232], HEO: [22.417, 114.225], TSH: [22.408, 114.22], SHM: [22.387, 114.212], CIO: [22.382, 114.203], STW: [22.374, 114.195], CKT: [22.37, 114.185], HIK: [22.363, 114.174], KAT: [22.335, 114.2], SUW: [22.327, 114.19], TKW: [22.316, 114.188], ETS: [22.304, 114.183], AUS: [22.306, 114.166], TWW: [22.369, 114.114], KSR: [22.363, 114.064], YUL: [22.445, 114.034], LOP: [22.447, 114.026], TIS: [22.444, 113.977], SIH: [22.412, 113.978], TUM: [22.395, 113.973],
 };
 
+const TOILET_LOCATIONS: Record<string, string> = {
+  WHA: "車站大堂D出口（已付車費區域）", HOM: "車站大堂B出口（已付車費區域）", YMT: "車站大堂C出口（已付車費區域）", MOK: "車站大堂A出口（已付車費區域）", PRE: "車站大堂A出口（已付車費區域）", KOT: "東鐵綫北面車站大堂（已付車費區域）", DIH: "屯馬綫車站大堂（已付車費區域）", NTK: "車站大堂（已付車費區域）", YAT: "車站大堂（已付車費區域）", TIK: "車站大堂（已付車費區域）",
+  CEN: "車站大堂L2層A出口（已付車費區域）", ADM: "車站大堂L1層F出口及L5層（已付車費區域）", TST: "車站大堂E出口（閘外區域）", MEF: "屯馬綫車站大堂（已付車費區域）", LAK: "車站大堂（已付車費區域）",
+  KET: "車站大堂A出口（閘外區域）", HKU: "車站大堂B出口（已付車費區域）", SYP: "車站大堂B出口（已付車費區域）", SHW: "車站大堂E出口（已付車費區域）", NOP: "車站大堂B出口（已付車費區域）", QUB: "車站大堂A出口（已付車費區域）",
+  HOK: "車站大堂G層E出口、L1層及L2層（閘外區域）", KOW: "車站G層及L2層（閘外區域）；L2層1號月台鄰近車尾位置洗手間正進行翻新工程，暫停使用", NAC: "車站大堂A出口（已付車費區域）", TSY: "車站大堂U4層及U2層（閘外區域）；U2層洗手間正進行翻新工程，暫停使用", SUN: "迪士尼綫往迪士尼方向3號月台",
+  OCP: "車站大堂（已付車費區域）", WCH: "車站大堂（已付車費區域）", LET: "車站大堂（已付車費區域）", SOH: "車站大堂（已付車費區域）",
+  WKS: "車站大堂（已付車費區域）", MOS: "車站大堂（已付車費區域）", HEO: "車站大堂（已付車費區域）", TSH: "車站大堂（已付車費區域）", SHM: "車站大堂（已付車費區域）", CIO: "車站大堂（已付車費區域）", STW: "車站大堂（已付車費區域）", CKT: "車站大堂（已付車費區域）", TAW: "車站大堂B出口（已付車費區域）", HIK: "車站大堂（已付車費區域）", KAT: "車站大堂C出口（已付車費區域）", SUW: "車站大堂D出口（已付車費區域）", TKW: "車站大堂B出口（已付車費區域）", HUH: "車站大堂U2層及U3層（閘外區域）及屯馬綫月台", ETS: "車站大堂（已付車費區域）", AUS: "車站大堂C出口（已付車費區域）", TWW: "車站大堂（已付車費區域）", KSR: "車站大堂（已付車費區域）", YUL: "車站大堂（已付車費區域）", LOP: "車站大堂（已付車費區域）", TIS: "車站大堂C出口（已付車費區域）", SIH: "車站大堂A出口（已付車費區域）", TUM: "車站大堂F出口（已付車費區域）",
+  EXC: "車站大堂B出口（已付車費區域）", MKK: "車站大堂C出口（已付車費區域）", SHT: "車站大堂（已付車費區域）", FOT: "車站大堂A出口（已付車費區域）", UNI: "車站大堂B出口（已付車費區域）", TAP: "車站大堂A出口（已付車費區域）", TWO: "車站大堂A出口（已付車費區域）", FAN: "車站大堂（已付車費區域）", SHS: "車站大堂（已付車費區域）", LOW: "車站月台及抵港大堂層（已付車費及閘外區域）", LMC: "車站大堂離港大堂層（已付車費區域）及抵港大堂層（閘外區域）",
+};
+
+for (const [code, toiletLocation] of Object.entries(TOILET_LOCATIONS)) {
+  if (STATION_DETAILS[code]) STATION_DETAILS[code].toiletLocation = toiletLocation;
+}
+
 // Ensure every station can be selected and resolved by the location-aware UI.
 for (const [code, coordinates] of Object.entries(ADDITIONAL_STATION_COORDINATES)) {
   if (!STATION_DETAILS[code]) {
     STATION_DETAILS[code] = {
       coordinates,
-      openingHours: "05:50 – 01:00",
-      exits: [
+  openingHours: "05:50 – 01:00",
+      toiletLocation: "無",
+  exits: [
         { code: "A", places: `${STATIONS[code]}站周邊主要道路` },
         { code: "B", places: `${STATIONS[code]}站公共交通接駁` },
         { code: "C", places: `${STATIONS[code]}站附近社區及公共設施` },
