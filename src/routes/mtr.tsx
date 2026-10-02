@@ -151,6 +151,7 @@ function MtrPage() {
   const [sta, setSta] = useState("CEN");
   const [dest, setDest] = useState("TSW");
   const [activeTab, setActiveTab] = useState<"route" | "trains" | "station">("trains");
+  const [stationListOpen, setStationListOpen] = useState(false);
   const [locationStatus, setLocationStatus] = useState<"idle" | "loading" | "ready" | "denied">("idle");
   const [nearestDistance, setNearestDistance] = useState<number | null>(null);
   const now = useNow();
@@ -312,6 +313,16 @@ function MtrPage() {
       </div>
 
       {line.firstLast && <div className="mx-5 mt-3 rounded-2xl border bg-card p-4 text-sm"><p className="font-semibold">首末班車（{line.name}，約數）</p><p className="mt-1">往{STATIONS[line.stations[line.stations.length - 1]!]}：首班 {line.firstLast.up[0]} · 尾班 {line.firstLast.up[1]}</p><p>往{STATIONS[line.stations[0]!]}：首班 {line.firstLast.down[0]} · 尾班 {line.firstLast.down[1]}</p><p className="mt-1 text-xs text-muted-foreground">各站實際時間略有不同，以港鐵公布為準</p></div>}
+
+      <div className="mx-5 mt-3 overflow-hidden rounded-2xl border bg-card text-sm">
+        <button type="button" onClick={() => setStationListOpen((open) => !open)} className="flex w-full items-center justify-between px-4 py-3 text-left font-semibold" aria-expanded={stationListOpen}>
+          <span className="flex items-center gap-2"><MapPin size={16} style={{ color: line.color }} />{line.name}車站清單</span>
+          <span className="text-xs font-medium text-muted-foreground">{stationListOpen ? "收回" : `展開（${line.stations.length}站）`}</span>
+        </button>
+        {stationListOpen && <div className="border-t px-4 py-3"><ol className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
+          {line.stations.map((code, index) => <li key={code} className={`flex items-center gap-2 rounded-lg px-2 py-1.5 ${code === sta ? "bg-primary/10 font-semibold" : "text-muted-foreground"}`}><span className="flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white" style={{ background: line.color }}>{index + 1}</span><span>{STATIONS[code]}</span></li>)}
+        </ol></div>}
+      </div>
       </>}
 
       {activeTab === "trains" && <>
