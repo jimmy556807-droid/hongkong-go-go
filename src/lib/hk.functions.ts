@@ -264,6 +264,42 @@ export const getGmbRoutes = createServerFn({ method: "GET" }).handler(async () =
   return data;
 });
 
+type NearbyGmb = { route: string; dest: string; stopName: string; dist: number; etas: Array<string | number>; co: "GMB"; routeId: string };
+let gmbNearbyCache: { at: number; data: Array<{ routeId: string; route: GmbRoute; stops: Array<{ id: string; name: string; lat: number; lng: number }> }> } | null = null;
+
+export const getNearbyGmbRoutes = createServerFn({ method: "GET" })
+  .inputValidator((d) => z.object({ lat: z.number(), lng: z.number() }).parse(d))
+  .handler(async ({ data }) => {
+    const now = Date.now();
+    if (!gmbNearbyCache || now - gmbNearbyCache.at > 3600000) {
+      const routes = await getGmbRoutes();
+      const entries = await Promise.all(routes.slice(0, 160).map(async (route) => {
+        const res = await fetch(`${GMB_API}/route-stop/${route.id}/1`).catch(() => null);
+        const payload: any = res?.ok ? await res.json().catch(() => null) : null;
+        const raw = payload?.data?.route_stop ?? payload?.data?.stops ?? payload?.data ?? [];
+        const stops = await Promise.all((Array.isArray(raw) ? raw : []).map(async (s: any) => {
+          const id = String(s.stop_id ?? s.id ?? "");
+          const detailRes = await fetch(`${GMB_API}/stop/${id}`).catch(() => null);
+          const detail: any = detailRes?.ok ? await detailRes.json().catch(() => null) : null;
+          const item = detail?.data ?? detail;
+          return { id, name: String(s.stop_name_tc ?? s.name_tc ?? s.name ?? item?.name_tc ?? ""), lat: Number(s.lat ?? item?.lat), lng: Number(s.lng ?? s.long ?? item?.lng) };
+        }));
+        return { routeId: route.id, route, stops: stops.filter((s) => Number.isFinite(s.lat) && Number.isFinite(s.lng) && s.lat !== 0 && s.lng !== 0) };
+      }));
+      gmbNearbyCache = { at: now, data: entries };
+    }
+    const nearby: NearbyGmb[] = [];
+    for (const entry of gmbNearbyCache.data) {
+      const closest = entry.stops.map((s) => ({ ...s, dist: distM(data.lat, data.lng, s.lat, s.lng) })).sort((a, b) => a.dist - b.dist)[0];
+      if (!closest || closest.dist > 800) continue;
+      const etaRes = await fetch(`${GMB_API}/eta/stop/${closest.id}`).catch(() => null);
+      const payload: any = etaRes?.ok ? await etaRes.json().catch(() => null) : null;
+      const etas = (payload?.data?.eta ?? payload?.data?.etas ?? []).slice(0, 3).map((e: any) => e.diff ?? e.timestamp ?? e.eta).filter(Boolean);
+      nearby.push({ route: entry.route.name, dest: entry.route.end, stopName: closest.name, dist: closest.dist, etas, co: "GMB", routeId: entry.routeId });
+    }
+    return nearby.sort((a, b) => a.dist - b.dist).slice(0, 12);
+  });
+
 export const getGmbEta = createServerFn({ method: "GET" })
   .inputValidator((d) => z.object({ routeId: z.string().regex(/^\\d+$/), routeSeq: z.number().int().min(1).max(9).default(1) }).parse(d))
   .handler(async ({ data }) => {

@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeftRight, Search, Clock, MapPin, Navigation, X } from "lucide-react";
-import { getBus, getBusRoutes, getNearbyRoutes, getStopEta, getGmbRoutes, getGmbEta } from "@/lib/hk.functions";
+import { getBus, getBusRoutes, getNearbyRoutes, getNearbyGmbRoutes, getStopEta, getGmbRoutes, getGmbEta } from "@/lib/hk.functions";
 import { getBusFare } from "@/lib/fare.functions";
 import { Wallet } from "lucide-react";
 
@@ -85,7 +85,9 @@ function BusPage() {
   const routesFn = useServerFn(getBusRoutes);
   const nearFn = useServerFn(getNearbyRoutes);
   const routes = useQuery({ queryKey: ["busRoutes"], queryFn: routesFn, staleTime: 86400000 });
+  const gmbNearFn = useServerFn(getNearbyGmbRoutes);
   const nearby = useQuery({ queryKey: ["nearbyRoutes", pos?.lat, pos?.lng], queryFn: () => nearFn({ data: pos! }), enabled: !!pos && !route, refetchInterval: 30000 });
+  const nearbyGmb = useQuery({ queryKey: ["nearbyGmbRoutes", pos?.lat, pos?.lng], queryFn: () => gmbNearFn({ data: pos! }), enabled: !!pos && !route, refetchInterval: 60000 });
   const q = useQuery({ queryKey: ["bus", co, route, dir], queryFn: () => fn({ data: { route: route!, dir, co } }), refetchInterval: 30000, enabled: !!route });
 
   const matches = useMemo(() => {
@@ -134,10 +136,10 @@ function BusPage() {
         <div className="mx-5 mt-4">
           <div className="flex items-end justify-between"><div><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">附近交通</p><h2 className="mt-1 flex items-center gap-2 text-xl font-bold"><Navigation size={18} className="text-primary" />三種巴士實時到站</h2></div><span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">LIVE</span></div>
           {!pos && <p className="mt-2 text-sm text-muted-foreground">正在取得你嘅位置…如未能定位，請用上面搜尋路線。</p>}
-          {pos && nearby.isLoading && <p className="mt-2 text-sm text-muted-foreground">搵緊附近九巴及城巴路線…</p>}
-          {pos && nearby.data?.length === 0 && <p className="mt-2 text-sm text-muted-foreground">附近 800 米內搵唔到巴士路線</p>}
-          {!!nearby.data?.length && <div className="mt-3 overflow-hidden rounded-2xl border bg-card shadow-sm"><div className="flex gap-4 border-b px-4 py-3 text-xs text-muted-foreground"><span><i className="mr-1 inline-block size-2 rounded-full bg-destructive" />九巴</span><span><i className="mr-1 inline-block size-2 rounded-full bg-accent-foreground" />城巴</span><span className="ml-auto">每 30 秒更新</span></div><div className="divide-y">{nearby.data.map((r) => <button key={r.co + r.route + r.dir} onClick={() => pick(r.route, r.dir, r.co)} className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-muted/60"><span className={`flex size-9 shrink-0 items-center justify-center rounded-xl text-xs font-bold ${r.co === "KMB" ? "bg-destructive/15 text-destructive" : "bg-accent text-accent-foreground"}`}>{r.co === "KMB" ? "九巴" : "城巴"}</span><span className="min-w-0 flex-1 text-sm"><b className="mr-2 text-base">{r.route}</b>往 {r.dest}<span className="block text-xs text-muted-foreground"><MapPin size={10} className="mr-0.5 inline" />{r.stopName} · {r.dist < 1000 ? `${Math.round(r.dist)} 米` : `${(r.dist / 1000).toFixed(1)} 公里`}</span></span><span className="flex gap-1.5 text-sm">{r.etas.length ? r.etas.slice(0, 2).map((e, i) => <Countdown key={i} at={e} now={now} />) : <span className="text-xs text-muted-foreground">暫無班次</span>}</span></button>)}</div></div>}
-          <p className="mt-2 text-[11px] text-muted-foreground">九巴、城巴按距離排列；專綫小巴路線及實時到站見下方。</p>
+          {pos && (nearby.isLoading || nearbyGmb.isLoading) && <p className="mt-2 text-sm text-muted-foreground">搵緊附近九巴、城巴及專綫小巴路線…</p>}
+          {pos && !nearby.isLoading && !nearbyGmb.isLoading && !nearby.data?.length && !nearbyGmb.data?.length && <p className="mt-2 text-sm text-muted-foreground">附近 800 米內搵唔到巴士路線</p>}
+          {!!(nearby.data?.length || nearbyGmb.data?.length) && <div className="mt-3 overflow-hidden rounded-2xl border bg-card shadow-sm"><div className="flex flex-wrap gap-x-4 gap-y-2 border-b px-4 py-3 text-xs text-muted-foreground"><span><i className="mr-1 inline-block size-2 rounded-full bg-destructive" />九巴</span><span><i className="mr-1 inline-block size-2 rounded-full bg-accent-foreground" />城巴</span><span><i className="mr-1 inline-block size-2 rounded-full bg-amber-500" />專綫小巴</span><span className="ml-auto">每 30–60 秒更新</span></div><div className="divide-y">{nearby.data?.map((r) => <button key={r.co + r.route + r.dir} onClick={() => pick(r.route, r.dir, r.co)} className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-muted/60"><span className={`flex size-9 shrink-0 items-center justify-center rounded-xl text-xs font-bold ${r.co === "KMB" ? "bg-destructive/15 text-destructive" : "bg-accent text-accent-foreground"}`}>{r.co === "KMB" ? "九巴" : "城巴"}</span><span className="min-w-0 flex-1 text-sm"><b className="mr-2 text-base">{r.route}</b>往 {r.dest}<span className="block text-xs text-muted-foreground"><MapPin size={10} className="mr-0.5 inline" />{r.stopName} · {r.dist < 1000 ? `${Math.round(r.dist)} 米` : `${(r.dist / 1000).toFixed(1)} 公里`}</span></span><span className="flex gap-1.5 text-sm">{r.etas.length ? r.etas.slice(0, 2).map((e, i) => <Countdown key={i} at={e} now={now} />) : <span className="text-xs text-muted-foreground">暫無班次</span>}</span></button>)}{nearbyGmb.data?.map((r) => <div key={`GMB${r.routeId}`} className="flex items-center gap-3 px-4 py-3"><span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-xs font-bold text-amber-800">小巴</span><span className="min-w-0 flex-1 text-sm"><b className="mr-2 text-base">{r.route}</b>往 {r.dest}<span className="block text-xs text-muted-foreground"><MapPin size={10} className="mr-0.5 inline" />{r.stopName} · {r.dist < 1000 ? `${Math.round(r.dist)} 米` : `${(r.dist / 1000).toFixed(1)} 公里`}</span></span><span className="flex gap-1.5 text-sm">{r.etas.length ? r.etas.slice(0, 2).map((e, i) => typeof e === "number" ? <b key={i}>{e <= 1 ? "即將到站" : `${e} 分鐘`}</b> : <span key={i}>{new Date(e).toLocaleTimeString("zh-HK", { hour: "2-digit", minute: "2-digit" })}</span>) : <span className="text-xs text-muted-foreground">暫無班次</span>}</span></div>)}</div></div>}
+          <p className="mt-2 text-[11px] text-muted-foreground">九巴、城巴及專綫小巴按附近距離排列；所有班次均按定位站點顯示實時到站。</p>
         </div>
       )}
 
@@ -183,7 +185,6 @@ function BusPage() {
         })}
       </ol>
       {stop && <StopSheet stop={stop} co={stop.co} route={stop.co === co ? route : null} onClose={() => setStop(null)} onPick={(r) => { setStop(null); setCo(stop.co); setRoute(r); setFrom(null); setTo(null); }} />}
-      <GmbPanel />
     </div>
   );
 }
