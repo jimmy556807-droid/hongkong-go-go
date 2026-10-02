@@ -6,6 +6,9 @@ import { getLrtNetwork, getLrtSchedule, getLrtFare, type LrtRoute } from "@/lib/
 
 const MIN_PER_STOP = 1.8;
 const LRT_COLOR = "#D3A809";
+const LRT_ROUTE_COLORS = ["#0072BC", "#E87511", "#7B3F98", "#008A45", "#D33F49", "#008C95", "#B06A00"];
+
+const routeColor = (route: string) => LRT_ROUTE_COLORS[(Number(route) || 0) % LRT_ROUTE_COLORS.length];
 
 export function LrtPanel() {
   const netFn = useServerFn(getLrtNetwork);
@@ -21,8 +24,8 @@ export function LrtPanel() {
   const routes = net.data ?? [];
   const cur: LrtRoute | undefined = routes.find((r) => `${r.route}-${r.dir}` === key) ?? routes[0];
   const stops = cur?.stops ?? [];
-  const fromId = from && stops.some((s) => s.id === from) ? from : stops[0]?.id ?? "";
-  const toId = to && stops.some((s) => s.id === to) ? to : stops[stops.length - 1]?.id ?? "";
+  const fromId = from || (stops[0]?.id ?? "");
+  const toId = to || (stops[stops.length - 1]?.id ?? "");
   const staId = sta || fromId;
 
   const allStations = useMemo(() => {
@@ -32,6 +35,16 @@ export function LrtPanel() {
       v.routes.add(r.route); m.set(s.id, v);
     }
     return [...m.entries()].sort((a, b) => a[1].name.localeCompare(b[1].name, "zh-HK"));
+  }, [routes]);
+
+  const stationGroups = useMemo(() => {
+    const groups = new Map<string, Map<string, { name: string; code: string }>>();
+    for (const r of routes) {
+      const stations = groups.get(r.route) ?? new Map();
+      for (const s of r.stops) stations.set(s.id, { name: s.name, code: s.code });
+      groups.set(r.route, stations);
+    }
+    return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b, "en", { numeric: true }));
   }, [routes]);
 
   const fi = stops.findIndex((s) => s.id === fromId), ti = stops.findIndex((s) => s.id === toId);
@@ -99,7 +112,15 @@ export function LrtPanel() {
           {([["起點", fromId, setFrom], ["終點", toId, setTo]] as const).map(([l, v, set]) => (
             <label key={l} className="text-xs text-muted-foreground">{l}
               <select value={v} onChange={(e) => set(e.target.value)} className="mt-1 w-full rounded-xl border bg-card px-3 py-3 text-base font-semibold text-foreground">
-                {stops.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                {stationGroups.map(([route, stations]) => (
+                  <optgroup key={route} label={`路線 ${route}`}>
+                    {[...stations.entries()].map(([id, s]) => (
+                      <option key={`${route}-${id}`} value={id} style={{ color: routeColor(route) }}>
+                        ● {s.name}（{s.code}）
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
               </select>
             </label>
           ))}
