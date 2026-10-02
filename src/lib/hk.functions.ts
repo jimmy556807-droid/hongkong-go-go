@@ -231,6 +231,54 @@ export const getNearbyRoutes = createServerFn({ method: "GET" })
     return [...m.values()].sort((a, b) => a.route.localeCompare(b.route, "en", { numeric: true }));
   });
 
+type GmbRoute = {
+  id: string; name: string; district: string; start: string; end: string;
+  fare: number; journeyTime: number; serviceMode: string; detailUrl: string;
+};
+
+const GMB_XML = "https://static.data.gov.hk/td/routes-fares-xml/ROUTE_GMB.xml";
+const GMB_API = "https://data.etagmb.gov.hk";
+let gmbCache: { at: number; data: GmbRoute[] } | null = null;
+
+const xmlTag = (s: string, tag: string) => s.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, "i"))?.[1]?.trim() ?? "";
+
+export const getGmbRoutes = createServerFn({ method: "GET" }).handler(async () => {
+  if (gmbCache && Date.now() - gmbCache.at < 6 * 3600e3) return gmbCache.data;
+  const r = await fetch(GMB_XML);
+  if (!r.ok) throw new Error("無法取得專綫小巴路線資料");
+  const xml = await r.text();
+  const data = xml.split(/<ROUTE>/i).slice(1).map((block): GmbRoute => ({
+    id: xmlTag(block, "ROUTE_ID"), name: xmlTag(block, "ROUTE_NAMEC"), district: xmlTag(block, "DISTRICT"),
+    start: xmlTag(block, "LOC_START_NAMEC"), end: xmlTag(block, "LOC_END_NAMEC"),
+    fare: Number(xmlTag(block, "FULL_FARE")), journeyTime: Number(xmlTag(block, "JOURNEY_TIME")),
+    serviceMode: xmlTag(block, "SERVICE_MODE"), detailUrl: xmlTag(block, "HYPERLINK_C"),
+  })).filter((x) => x.id && x.name);
+  gmbCache = { at: Date.now(), data };
+  return data;
+});
+
+export const getGmbEta = createServerFn({ method: "GET" })
+  .inputValidator((d) => z.object({ routeId: z.string().regex(/^\\d+$/), routeSeq: z.number().int().min(1).max(9).default(1) }).parse(d))
+  .handler(async ({ data }) => {
+    const r = await fetch(`${GMB_API}/route-stop/${data.routeId}/${data.routeSeq}`);
+    if (!r.ok) throw new Error("無法取得專綫小巴車站資料");
+    const payload: any = await r.json();
+    const stops = payload?.data?.route_stop ?? payload?.data?.stops ?? payload?.data ?? [];
+    return Promise.all((Array.isArray(stops) ? stops : []).map(async (s: any) => {
+      const stopSeq = Number(s.stop_seq ?? s.stop_sequence ?? s.seq);
+      const etaRes = await fetch(`${GMB_API}/eta/route-stop/${data.routeId}/${data.routeSeq}/${stopSeq}`).catch(() => null);
+      const etaPayload: any = etaRes?.ok ? await etaRes.json().catch(() => null) : null;
+      const entries = etaPayload?.data?.eta ?? etaPayload?.data?.etas ?? [];
+      return {
+        seq: stopSeq, id: String(s.stop_id ?? s.id ?? ""),
+        name: String(s.stop_name_tc ?? s.name_tc ?? s.name ?? ""),
+        etas: (Array.isArray(entries) ? entries : []).filter((e: any) => e.timestamp || e.diff != null).slice(0, 3).map((e: any) => ({
+          timestamp: e.timestamp ? String(e.timestamp) : null, diff: e.diff == null ? null : Number(e.diff), remarks: String(e.remarks_tc ?? ""),
+        })),
+      };
+    }));
+  });
+
 export const getMtr = createServerFn({ method: "GET" })
   .inputValidator((d) => z.object({ line: z.string().max(4), sta: z.string().max(4) }).parse(d))
   .handler(async ({ data }) => {

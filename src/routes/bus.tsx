@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeftRight, Search, Clock, MapPin, Navigation, X } from "lucide-react";
-import { getBus, getBusRoutes, getNearbyRoutes, getStopEta } from "@/lib/hk.functions";
+import { getBus, getBusRoutes, getNearbyRoutes, getStopEta, getGmbRoutes, getGmbEta } from "@/lib/hk.functions";
 import { getBusFare } from "@/lib/fare.functions";
 import { Wallet } from "lucide-react";
 
@@ -47,6 +47,32 @@ export const Route = createFileRoute("/bus")({
 });
 
 const MIN_PER_STOP = 2.2;
+
+function GmbPanel() {
+  const routesFn = useServerFn(getGmbRoutes);
+  const etaFn = useServerFn(getGmbEta);
+  const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState<GmbRoute | null>(null);
+  const routes = useQuery({ queryKey: ["gmb-routes"], queryFn: routesFn, staleTime: 3600e3 });
+  const eta = useQuery({
+    queryKey: ["gmb-eta", selected?.id],
+    queryFn: () => etaFn({ data: { routeId: selected!.id, routeSeq: 1 } }),
+    enabled: !!selected,
+    refetchInterval: 60000,
+  });
+  const filtered = (routes.data ?? []).filter((r) => `${r.name} ${r.start} ${r.end}`.includes(query.trim())).slice(0, 30);
+  return <section className="mt-6 border-t pt-5" aria-labelledby="gmb-title">
+    <div className="mx-5 flex items-center justify-between"><div><h2 id="gmb-title" className="text-lg font-bold">專綫小巴</h2><p className="text-xs text-muted-foreground">路綫、全程收費及實時到站</p></div><span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">GMB</span></div>
+    {!selected && <div className="mx-5 mt-3"><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜尋小巴路綫或地點" className="w-full rounded-xl border bg-card px-3 py-3 outline-none" />
+      {routes.isLoading && <p className="mt-3 text-sm text-muted-foreground">載入專綫小巴路綫中…</p>}
+      {routes.isError && <p className="mt-3 text-sm text-destructive">未能載入專綫小巴資料</p>}
+      <div className="mt-2 divide-y rounded-2xl border bg-card">{filtered.map((r) => <button key={r.id} onClick={() => setSelected(r)} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-muted"><b className="w-14 text-primary">{r.name}</b><span className="min-w-0 flex-1 text-sm">{r.start} → {r.end}<span className="block text-xs text-muted-foreground">全程 ${r.fare.toFixed(1)} · 約 {r.journeyTime} 分鐘</span></span></button>)}{!routes.isLoading && filtered.length === 0 && <p className="p-4 text-sm text-muted-foreground">找不到相關路綫</p>}</div>
+    </div>}
+    {selected && <div className="mx-5 mt-3"><button onClick={() => setSelected(null)} className="text-sm text-primary underline">← 返回專綫小巴路綫</button><div className="mt-3 rounded-2xl border bg-card p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-xl font-bold text-primary">{selected.name}</p><p className="mt-1 text-sm">{selected.start} → {selected.end}</p></div><b className="rounded-lg bg-muted px-2 py-1 text-sm">${selected.fare.toFixed(1)}</b></div><p className="mt-2 text-xs text-muted-foreground">全程收費 · 預計行程 {selected.journeyTime} 分鐘 · 每分鐘自動更新</p>{eta.isLoading && <p className="mt-4 text-sm text-muted-foreground">載入實時到站中…</p>}{eta.isError && <p className="mt-4 text-sm text-destructive">此路綫暫未提供實時到站資料</p>}<ol className="mt-3 divide-y">{eta.data?.map((s) => <li key={s.seq} className="flex items-center gap-3 py-2.5"><span className="w-6 text-xs text-muted-foreground">{s.seq}</span><span className="flex-1 text-sm">{s.name}</span><span className="text-right text-xs">{s.etas.length ? s.etas.map((e, i) => <b key={i} className="ml-2 text-primary">{e.diff != null ? `${e.diff} 分鐘` : e.timestamp?.slice(11, 16)}</b>) : <span className="text-muted-foreground">暫無班次</span>}</span></li>)}</ol></div></div>}
+  </section>;
+}
+
+type GmbRoute = { id: string; name: string; district: string; start: string; end: string; fare: number; journeyTime: number; serviceMode: string; detailUrl: string };
 
 function BusPage() {
   const [input, setInput] = useState("");
@@ -180,6 +206,7 @@ function BusPage() {
         })}
       </ol>
       {stop && <StopSheet stop={stop} co={stop.co} route={stop.co === co ? route : null} onClose={() => setStop(null)} onPick={(r) => { setStop(null); setCo(stop.co); setRoute(r); setFrom(null); setTo(null); }} />}
+      <GmbPanel />
     </div>
   );
 }
