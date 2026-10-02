@@ -227,6 +227,7 @@ function MtrPage() {
             setMode(value);
             const firstLine = LINES.find((candidate) => value === "lrt" ? candidate.code.startsWith("LRT") : !candidate.code.startsWith("LRT"))!;
             selectLine(firstLine);
+            if (value === "mtr") locateNearestStation();
           }} className={`rounded-xl px-2 py-2 text-sm font-semibold transition-colors ${mode === value ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`} aria-pressed={mode === value}>{label}</button>
         ))}
       </div>
@@ -240,7 +241,7 @@ function MtrPage() {
         ))}
       </div>
 
-      <div className="flex gap-2 overflow-x-auto px-5 pb-2 pt-3">
+      {activeTab !== "trains" && <div className="flex gap-2 overflow-x-auto px-5 pb-2 pt-3">
         {LINES.filter((l) => !l.code.startsWith("LRT")).map((l) => (
           <button key={l.code} onClick={() => selectLine(l)}
             className="shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium"
@@ -248,7 +249,7 @@ function MtrPage() {
             {l.name}
           </button>
         ))}
-      </div>
+      </div>}
 
       {activeTab === "route" && <>
       <div className="mx-5 mt-2 grid grid-cols-2 gap-2">
