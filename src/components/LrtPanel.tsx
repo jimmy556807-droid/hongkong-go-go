@@ -11,7 +11,7 @@ export function LrtPanel() {
   const netFn = useServerFn(getLrtNetwork);
   const schedFn = useServerFn(getLrtSchedule);
   const fareFn = useServerFn(getLrtFare);
-  const [tab, setTab] = useState<"route" | "trains" | "station">("route");
+  const [tab, setTab] = useState<"route" | "trains" | "station">("trains");
   const [key, setKey] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -76,7 +76,7 @@ export function LrtPanel() {
   return (
     <div>
       <div className="mx-5 mt-3 grid grid-cols-3 rounded-2xl bg-muted p-1" role="tablist" aria-label="輕鐵功能分類">
-        {([["route", "路線"], ["trains", "下班列車"], ["station", "車站詳情"]] as const).map(([v, l]) => (
+        {([["trains", "下班列車"], ["route", "路線"], ["station", "車站詳情"]] as const).map(([v, l]) => (
           <button key={v} role="tab" aria-selected={tab === v} onClick={() => setTab(v)}
             className={`rounded-xl px-2 py-2.5 text-sm font-semibold ${tab === v ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}>{l}</button>
         ))}
