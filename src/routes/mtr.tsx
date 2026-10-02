@@ -5,7 +5,6 @@ import { useMemo, useState } from "react";
 import { Clock, MapPin, ArrowRight, Wallet } from "lucide-react";
 import { getMtr } from "@/lib/hk.functions";
 import { getMtrFare } from "@/lib/fare.functions";
-import { FareSaverCard } from "@/components/FareSaverCard";
 
 function MtrFareBox({ from, to }: { from: string; to: string }) {
   const fn = useServerFn(getMtrFare);
@@ -122,6 +121,7 @@ function MtrPage() {
   const [line, setLine] = useState<Line>(LINES[0]!);
   const [sta, setSta] = useState("CEN");
   const [dest, setDest] = useState("TSW");
+  const [activeTab, setActiveTab] = useState<"route" | "trains" | "station">("route");
   const now = useNow();
   const fn = useServerFn(getMtr);
 
@@ -148,7 +148,16 @@ function MtrPage() {
   return (
     <div>
       <PageHeader title="地鐵" sub="港鐵實時班次" />
-      <div className="flex gap-2 overflow-x-auto px-5 pb-2">
+      <div className="mx-5 mt-3 grid grid-cols-3 rounded-2xl bg-muted p-1" role="tablist" aria-label="地鐵功能分類">
+        {([['route', '路線規劃'], ['trains', '下班列車'], ['station', '車站詳情']] as const).map(([value, label]) => (
+          <button key={value} role="tab" aria-selected={activeTab === value} onClick={() => setActiveTab(value)}
+            className={`rounded-xl px-2 py-2.5 text-sm font-semibold transition-colors ${activeTab === value ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex gap-2 overflow-x-auto px-5 pb-2 pt-3">
         {LINES.map((l) => (
           <button key={l.code} onClick={() => selectLine(l)}
             className="shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium"
@@ -158,6 +167,7 @@ function MtrPage() {
         ))}
       </div>
 
+      {activeTab === "route" && <>
       <div className="mx-5 mt-2 grid grid-cols-2 gap-2">
         <label className="text-xs text-muted-foreground">起點（全綫車站）
           <select value={sta} onChange={(e) => setSta(e.target.value)} className="mt-1 w-full rounded-xl border bg-card px-3 py-3 text-base font-semibold text-foreground">
@@ -171,7 +181,6 @@ function MtrPage() {
         </label>
       </div>
 
-      <FareSaverCard />
       <div className="mx-5 mt-3 rounded-2xl border bg-card p-4 text-sm">
         <p className="flex items-center gap-2 font-semibold"><Clock size={16} className="text-primary" />預計行程時間</p>
         {!route ? <p className="mt-1 text-muted-foreground">請選擇不同的起點和終點</p> : (
@@ -190,7 +199,9 @@ function MtrPage() {
           </>
         )}
       </div>
+      </>}
 
+      {activeTab === "station" && <>
       <div className="mx-5 mt-3 rounded-2xl border bg-card p-4 text-sm">
         <p className="flex items-center gap-2 font-semibold"><MapPin size={16} className="text-primary" />{STATIONS[sta]}站 詳情</p>
         <p className="mt-1 text-muted-foreground">車站代號 {sta} · {boardLine.name}第 {boardLine.stations.indexOf(sta) + 1} 站</p>
@@ -211,6 +222,13 @@ function MtrPage() {
           <p className="mt-1 text-xs text-muted-foreground">各站實際時間略有不同，以港鐵公布為準</p>
         </div>
       )}
+      </>}
+
+      {activeTab === "trains" && <>
+      <div className="mx-5 mt-3 rounded-2xl border bg-card p-4 text-sm">
+        <p className="flex items-center gap-2 font-semibold"><Clock size={16} className="text-primary" />下班列車</p>
+        <p className="mt-1 text-muted-foreground">{STATIONS[sta]}站 · {boardLine.name} · 每 20 秒更新</p>
+      </div>
 
       {q.isLoading && <p className="mx-5 mt-6 text-muted-foreground">載入中…</p>}
       {q.data?.delay && <p className="mx-5 mt-4 rounded-xl bg-destructive/10 p-3 text-sm text-destructive">列車服務延誤</p>}
@@ -228,6 +246,7 @@ function MtrPage() {
           </div>
         ))}
       </div>
+      </>}
     </div>
   );
 }

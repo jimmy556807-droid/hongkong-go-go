@@ -10,6 +10,7 @@ import {
 import { getNews, getWeather } from "@/lib/hk.functions";
 import { planTrip, type Leg } from "@/lib/trip.functions";
 import { PageHeader } from "@/components/BottomNav";
+import { FareSaverCard } from "@/components/FareSaverCard";
 
 
 export const Route = createFileRoute("/")({
@@ -197,6 +198,7 @@ function Index() {
         {!!w.data?.warnings.length && <p className="mt-2 text-sm font-medium">⚠ {w.data.warnings.join("、")}</p>}
       </div>
       <Planner />
+      <FareSaverCard />
       <div className="mx-5 mt-4 grid grid-cols-3 gap-3">
 
         {tiles.map(({ to, icon: I, label }) => (
