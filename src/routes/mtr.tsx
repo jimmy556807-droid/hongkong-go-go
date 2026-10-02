@@ -229,11 +229,6 @@ function MtrPage() {
             <StationOptions />
           </select>
         </label>
-        <label className="text-xs text-muted-foreground">終點（全綫車站）
-          <select value={dest} onChange={(e) => setDest(e.target.value)} className="mt-1 w-full rounded-xl border bg-card px-3 py-3 text-base font-semibold text-foreground">
-            {ALL_STATIONS.map((s) => <option key={s} value={s}>{STATIONS[s] ?? s}</option>)}
-          </select>
-        </label>
       </div>
 
       <div className="mx-5 mt-3 rounded-2xl border bg-card p-4 text-sm">
