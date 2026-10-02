@@ -308,6 +308,11 @@ function MtrPage() {
       </div>
 
       <div className="mx-5 mt-3 rounded-2xl border bg-card p-4 text-sm">
+        <p className="flex items-center gap-2 font-semibold"><Navigation size={16} className="text-primary" />站內洗手間位置</p>
+        <p className="mt-2 text-muted-foreground">{stationDetails?.toiletLocation ?? "請按站內指示前往洗手間；實際位置以港鐵官方資料及現場標示為準。"}</p>
+      </div>
+
+      <div className="mx-5 mt-3 rounded-2xl border bg-card p-4 text-sm">
         <p className="flex items-center gap-2 font-semibold"><DoorOpen size={16} className="text-primary" />出口資訊</p>
         <div className="mt-3 space-y-2">{(stationDetails?.exits ?? [{ code: "—", places: "出口資料載入中" }]).map((exit) => <div key={exit.code} className="flex gap-3 rounded-xl bg-muted/60 px-3 py-2.5"><span className="min-w-8 rounded-md bg-card px-1.5 py-0.5 text-center font-bold text-primary shadow-sm">{exit.code}</span><span className="text-muted-foreground">{exit.places}</span></div>)}</div>
       </div>
