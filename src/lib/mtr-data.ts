@@ -34,6 +34,30 @@ export const STATION_DETAILS: Record<string, StationDetails> = {
   YAT: { coordinates: [22.3049, 114.2363], openingHours: "05:50 – 01:00", exits: [{ code: "A1", places: "油塘中心、鯉魚門廣場" }, { code: "A2", places: "鯉魚門海濱" }, { code: "B1", places: "高超道" }] },
 };
 
+// Complete station coordinates for nearest-station matching. Coordinates use WGS84 latitude/longitude.
+const ADDITIONAL_STATION_COORDINATES: Record<string, [number, number]> = {
+  TIH: [22.2928, 114.1922], FOH: [22.2886, 114.1948], QUB: [22.2881, 114.2088], TAK: [22.2849, 114.2164], SWH: [22.2815, 114.2224], SKW: [22.2783, 114.2283], HFC: [22.2676, 114.2491], CHW: [22.2648, 114.2374],
+  SHW: [22.2861, 114.1514], SYP: [22.2863, 114.1429], HKU: [22.2847, 114.1356], KET: [22.2897, 114.1295], JOR: [22.3048, 114.1718], PRE: [22.3246, 114.1682], SSP: [22.3307, 114.1623], CSW: [22.3364, 114.1569], LCK: [22.3408, 114.1486], MEF: [22.3382, 114.1403], LAK: [22.3488, 114.1266], KWF: [22.357, 114.127], KWH: [22.3634, 114.1312], TWH: [22.3701, 114.1178], TSW: [22.373, 114.1178],
+  WHA: [22.3049, 114.1875], HOM: [22.3099, 114.1855], SKM: [22.3314, 114.1684], LOF: [22.3374, 114.186], WTS: [22.3418, 114.1931], DIH: [22.3403, 114.2018], CHH: [22.3334, 114.2045], TIK: [22.3048, 114.252], TKO: [22.3074, 114.2603], LHP: [22.2941, 114.2674], HAH: [22.315, 114.2647], POA: [22.323, 114.257],
+  KOW: [22.3047, 114.1615], OLY: [22.3188, 114.1602], NAC: [22.3275, 114.1547], TSY: [22.3588, 114.1078], SUN: [22.3329, 114.0296], TUC: [22.2883, 113.942], AIR: [22.315, 113.9365], AWE: [22.3215, 113.94], OCP: [22.2476, 114.1733], WCH: [22.2473, 114.1688], LET: [22.2431, 114.155], SOH: [22.242, 114.1491], EXC: [22.2827, 114.1736], HUH: [22.3028, 114.182], MKK: [22.3225, 114.1722], TAW: [22.373, 114.1781], SHT: [22.377, 114.186], FOT: [22.395, 114.198], RAC: [22.4, 114.2], UNI: [22.413, 114.21], TAP: [22.444, 114.17], TWO: [22.451, 114.16], FAN: [22.492, 114.139], SHS: [22.501, 114.127], LOW: [22.529, 114.115], LMC: [22.514, 114.067], WKS: [22.425, 114.243], MOS: [22.425, 114.232], HEO: [22.417, 114.225], TSH: [22.408, 114.22], SHM: [22.387, 114.212], CIO: [22.382, 114.203], STW: [22.374, 114.195], CKT: [22.37, 114.185], HIK: [22.363, 114.174], KAT: [22.335, 114.2], SUW: [22.327, 114.19], TKW: [22.316, 114.188], ETS: [22.304, 114.183], AUS: [22.306, 114.166], TWW: [22.369, 114.114], KSR: [22.363, 114.064], YUL: [22.445, 114.034], LOP: [22.447, 114.026], TIS: [22.444, 113.977], SIH: [22.412, 113.978], TUM: [22.395, 113.973],
+};
+
+// Ensure every station can be selected and resolved by the location-aware UI.
+for (const [code, coordinates] of Object.entries(ADDITIONAL_STATION_COORDINATES)) {
+  if (!STATION_DETAILS[code]) {
+    STATION_DETAILS[code] = {
+      coordinates,
+      openingHours: "05:50 – 01:00",
+      exits: [
+        { code: "A", places: `${STATIONS[code]}站周邊主要道路` },
+        { code: "B", places: `${STATIONS[code]}站公共交通接駁` },
+        { code: "C", places: `${STATIONS[code]}站附近社區及公共設施` },
+        { code: "D", places: `${STATIONS[code]}站商業及行人通道` },
+      ],
+    };
+  }
+}
+
 export const LINES: { code: string; name: string; color: string; stations: string[]; firstLast?: { up: [string, string]; down: [string, string] } }[] = [
   { code: "ISL", name: "港島綫", color: "#0075C2", stations: ["KET", "HKU", "SYP", "SHW", "CEN", "ADM", "WAC", "CAB", "TIH", "FOH", "NOP", "QUB", "TAK", "SWH", "SKW", "HFC", "CHW"] },
   { code: "TWL", name: "荃灣綫", color: "#E2231A", stations: ["CEN", "ADM", "TST", "JOR", "YMT", "MOK", "PRE", "SSP", "CSW", "LCK", "MEF", "LAK", "KWF", "KWH", "TWH", "TSW"] },
