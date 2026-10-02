@@ -4,8 +4,6 @@ import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Clock, MapPin, ArrowRight, Wallet, Navigation, DoorOpen, LocateFixed } from "lucide-react";
 import { getMtr } from "@/lib/hk.functions";
-import { getMtrFare } from "@/lib/fare.functions";
-
 const AIRPORT_EXPRESS_FARES: Record<string, { octopus: number; single: number }> = {
   "HOK-AIR": { octopus: 110, single: 120 },
   "KOW-AIR": { octopus: 100, single: 105 },
@@ -31,31 +29,6 @@ function AirportExpressFareBox({ from, to }: { from: string; to: string }) {
   );
 }
 
-function MtrFareBox({ from, to }: { from: string; to: string }) {
-  const fn = useServerFn(getMtrFare);
-  const q = useQuery({ queryKey: ["mtrFare", from, to], queryFn: () => fn({ data: { from, to } }), staleTime: 86400000 });
-  const f = q.data;
-  const rows: [string, number | undefined][] = [
-    ["八達通成人", f?.octAdult], ["八達通學生", f?.octStudent], ["八達通小童", f?.octChild],
-    ["長者優惠", f?.octElder], ["單程票成人", f?.single], ["單程票小童", f?.singleChild],
-  ];
-  return (
-    <div className="mt-3 border-t pt-3">
-      <p className="flex items-center gap-2 font-semibold"><Wallet size={16} className="text-primary" />車資詳情</p>
-      {q.isLoading && <p className="mt-1 text-muted-foreground">載入中…</p>}
-      {q.isError && <p className="mt-1 text-muted-foreground">暫時未能取得車資</p>}
-      {q.data === null && <p className="mt-1 text-muted-foreground">此行程暫無車資資料</p>}
-      {f && (
-        <div className="mt-2 grid grid-cols-2 gap-1.5 text-xs">
-          {rows.map(([k, v]) => (
-            <div key={k} className="flex justify-between rounded-lg bg-muted/60 px-2.5 py-1.5"><span className="text-muted-foreground">{k}</span><b>${v?.toFixed(1)}</b></div>
-          ))}
-        </div>
-      )}
-      <p className="mt-1.5 text-[11px] text-muted-foreground">資料來源：港鐵公開數據（未計機場快綫及東鐵綫頭等）</p>
-    </div>
-  );
-}
 import { LINES, STATIONS, STATION_DETAILS } from "@/lib/mtr-data";
 import { PageHeader, Countdown, useNow } from "@/components/BottomNav";
 
@@ -270,8 +243,8 @@ function MtrPage() {
               ))}
             </div>
             {waitMin != null && <p className="mt-2 text-muted-foreground">下班車 {Math.round(waitMin)} 分鐘後，預計 {new Date(now + (waitMin + ride) * 60000).toLocaleTimeString("zh-HK", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Hong_Kong" })} 到達</p>}
-            <MtrFareBox from={sta} to={dest} />
-            {route.segs.filter((segment) => segment.line.code === "AEL").map((segment) => (
+  {route.segs.filter((segment) => segment.line.code === "AEL").map((segment) => (
+
               <AirportExpressFareBox key={`${segment.from}-${segment.to}`} from={segment.from} to={segment.to} />
             ))}
           </>
