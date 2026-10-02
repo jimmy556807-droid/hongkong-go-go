@@ -60,9 +60,35 @@ export const Route = createFileRoute("/mtr")({
   component: MtrPage,
 });
 
-const MIN_PER_STOP = 2.3;
-const TRANSFER_MIN = 4;
+const LINE_MIN_PER_STOP: Record<string, number> = {
+  ISL: 2.2,
+  TWL: 2.1,
+  KTL: 2.3,
+  TKL: 2.4,
+  EAL: 2.5,
+  TML: 2.6,
+  TCL: 2.4,
+  AEL: 2.0,
+  SIL: 2.5,
+};
+const DEFAULT_MIN_PER_STOP = 2.3;
+const TRANSFER_MIN = 5;
 type Line = (typeof LINES)[number];
+
+type RouteTiming = { rideMins: number; transferMins: number; totalMins: number };
+
+function getRouteTiming(route: { segs: Seg[]; transfers: number }): RouteTiming {
+  const rideMins = route.segs.reduce(
+    (total, segment) => total + segment.stops * (LINE_MIN_PER_STOP[segment.line.code] ?? DEFAULT_MIN_PER_STOP),
+    0,
+  );
+  const transferMins = route.transfers * TRANSFER_MIN;
+  return {
+    rideMins,
+    transferMins,
+    totalMins: Math.max(1, Math.round(rideMins + transferMins)),
+  };
+}
 
 const LINE_BY_CODE = Object.fromEntries(LINES.map((l) => [l.code, l]));
 
@@ -215,7 +241,8 @@ function MtrPage() {
   const wantUp = seg0 ? seg0.line.stations.indexOf(seg0.to) > seg0.line.stations.indexOf(seg0.from) : true;
   const next = (wantUp ? q.data?.up : q.data?.down)?.[0];
   const waitMin = next ? Math.max(0, (new Date(toHkIso(next.time)).getTime() - now) / 60000) : null;
-  const ride = route ? Math.round(route.stops * MIN_PER_STOP + route.transfers * TRANSFER_MIN) : 0;
+  const timing = route ? getRouteTiming(route) : null;
+  const ride = timing?.totalMins ?? 0;
 
   const selectLine = (l: Line) => { setLine(l); setSta(l.stations[0]!); setDest(l.stations[l.stations.length - 1]!); };
 
@@ -271,13 +298,17 @@ function MtrPage() {
         {!route ? <p className="mt-1 text-muted-foreground">請選擇不同的起點和終點</p> : (
           <>
             <p className="mt-1">{STATIONS[sta]} → {STATIONS[dest]}（{route.stops} 個站{route.transfers > 0 ? ` · 轉乘 ${route.transfers} 次` : ""}）約 <b className="text-lg text-primary">{ride}</b> 分鐘</p>
+            {timing && <p className="mt-1 text-xs text-muted-foreground">行車約 {Math.round(timing.rideMins)} 分鐘{timing.transferMins > 0 ? ` · 轉乘步行約 ${timing.transferMins} 分鐘` : ""} · 按各綫平均站間行車時間估算</p>}
             <div className="mt-2 space-y-1.5">
-              {route.segs.map((s, i) => (
-                <div key={i} className="flex items-center gap-2 text-xs">
-                  <span className="shrink-0 rounded-full px-2 py-0.5 font-medium text-white" style={{ background: s.line.color }}>{s.line.name}</span>
-                  <span className="text-muted-foreground">{STATIONS[s.from]} <ArrowRight size={10} className="inline" /> {STATIONS[s.to]}（{s.stops} 站）</span>
-                </div>
-              ))}
+              {route.segs.map((s, i) => {
+                const segmentMins = Math.round(s.stops * (LINE_MIN_PER_STOP[s.line.code] ?? DEFAULT_MIN_PER_STOP));
+                return (
+                  <div key={i} className="flex items-center gap-2 text-xs">
+                    <span className="shrink-0 rounded-full px-2 py-0.5 font-medium text-white" style={{ background: s.line.color }}>{s.line.name}</span>
+                    <span className="text-muted-foreground">{STATIONS[s.from]} <ArrowRight size={10} className="inline" /> {STATIONS[s.to]}（{s.stops} 站 · 約 {segmentMins} 分鐘）</span>
+                  </div>
+                );
+              })}
             </div>
             {waitMin != null && <p className="mt-2 text-muted-foreground">下班車 {Math.round(waitMin)} 分鐘後，預計 {new Date(now + (waitMin + ride) * 60000).toLocaleTimeString("zh-HK", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Hong_Kong" })} 到達</p>}
   {isAirportExpressRoute ? route.segs.filter((segment) => segment.line.code === "AEL").map((segment) => (
