@@ -150,7 +150,15 @@ export function LrtPanel() {
         <div className="mx-5 mt-3">
           <label className="text-xs text-muted-foreground">車站
             <select value={staId} onChange={(e) => setSta(e.target.value)} className="mt-1 w-full rounded-xl border bg-card px-3 py-3 text-base font-semibold text-foreground">
-              {allStations.map(([id, s]) => <option key={id} value={id}>{s.name}</option>)}
+              {stationGroups.map(([route, stations]) => (
+                <optgroup key={route} label={`路線 ${route}`}>
+                  {[...stations.entries()].map(([id, s]) => (
+                    <option key={`${route}-${id}`} value={id} style={{ color: routeColor(route) }}>
+                      ● {s.name}（{s.code}）
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
             </select>
           </label>
         </div>
