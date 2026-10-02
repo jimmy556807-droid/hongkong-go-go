@@ -60,26 +60,64 @@ export function LrtPanel() {
     return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b, "en", { numeric: true }));
   }, [routes]);
 
-  const tripRoute = useMemo(() => {
-    if (tab !== "route" || !from || !to || from === to) return cur;
-    return routes
-      .filter((route) => {
-        const fromIndex = route.stops.findIndex((stop) => stop.id === from);
-        const toIndex = route.stops.findIndex((stop) => stop.id === to);
-        return fromIndex >= 0 && toIndex >= 0 && fromIndex !== toIndex;
-      })
-      .sort((a, b) => {
-        const aFrom = a.stops.findIndex((stop) => stop.id === from);
-        const aTo = a.stops.findIndex((stop) => stop.id === to);
-        const bFrom = b.stops.findIndex((stop) => stop.id === from);
-        const bTo = b.stops.findIndex((stop) => stop.id === to);
-        return Math.abs(aTo - aFrom) - Math.abs(bTo - bFrom);
-      })[0] ?? cur;
-  }, [cur, from, routes, tab, to]);
+  const tripPlan = useMemo(() => {
+    if (tab !== "route" || !from || !to || from === to) return null;
+    type State = { station: string; routeKey: string; minutes: number; previous?: State; action?: "ride" | "transfer" };
+    const queue: State[] = routes.flatMap((route) => route.stops.some((s) => s.id === from)
+      ? [{ station: from, routeKey: `${route.route}-${route.dir}`, minutes: 0 }]
+      : []);
+    const best = new Map<string, number>();
+    queue.forEach((state) => best.set(`${state.station}|${state.routeKey}`, 0));
+    let result: State | undefined;
+    while (queue.length && !result) {
+      queue.sort((a, b) => a.minutes - b.minutes);
+      const state = queue.shift()!;
+      if (state.station === to) { result = state; break; }
+      const route = routes.find((r) => `${r.route}-${r.dir}` === state.routeKey);
+      if (!route) continue;
+      const index = route.stops.findIndex((s) => s.id === state.station);
+      for (const nextIndex of [index - 1, index + 1]) {
+        const next = route.stops[nextIndex];
+        if (!next) continue;
+        const minutes = state.minutes + getMinutesPerStop(route.route);
+        const key = `${next.id}|${state.routeKey}`;
+        if (minutes < (best.get(key) ?? Infinity)) {
+          best.set(key, minutes);
+          queue.push({ station: next.id, routeKey: state.routeKey, minutes, previous: state, action: "ride" });
+        }
+      }
+      for (const other of routes) {
+        const otherKey = `${other.route}-${other.dir}`;
+        if (otherKey === state.routeKey || !other.stops.some((s) => s.id === state.station)) continue;
+        const minutes = state.minutes + 4;
+        const key = `${state.station}|${otherKey}`;
+        if (minutes < (best.get(key) ?? Infinity)) {
+          best.set(key, minutes);
+          queue.push({ station: state.station, routeKey: otherKey, minutes, previous: state, action: "transfer" });
+        }
+      }
+    }
+    if (!result) return null;
+    const states: State[] = [];
+    for (let state: State | undefined = result; state; state = state.previous) states.unshift(state);
+    const segments: { route: LrtRoute; from: string; to: string; stops: number }[] = [];
+    for (let i = 1; i < states.length; i++) {
+      const state = states[i];
+      const previous = states[i - 1];
+      if (!state || !previous || state.action !== "ride") continue;
+      const route = routes.find((r) => `${r.route}-${r.dir}` === state.routeKey)!;
+      const last = segments[segments.length - 1];
+      if (last && last.route.route === route.route && last.route.dir === route.dir) {
+        last.to = state.station; last.stops += 1;
+      } else segments.push({ route, from: previous.station, to: state.station, stops: 1 });
+    }
+    return { minutes: result.minutes, segments, transfers: Math.max(0, segments.length - 1) };
+  }, [from, routes, tab, to]);
+  const tripRoute = tripPlan?.segments[0]?.route ?? cur;
   const tripStops = tripRoute?.stops ?? stops;
   const fi = tripStops.findIndex((s) => s.id === fromId), ti = tripStops.findIndex((s) => s.id === toId);
-  const nStops = fi >= 0 && ti >= 0 && fi !== ti ? Math.abs(ti - fi) : 0;
-  const tripMinutes = tripRoute ? Math.round(nStops * getMinutesPerStop(tripRoute.route)) : 0;
+  const nStops = tripPlan ? tripPlan.segments.reduce((total, segment) => total + segment.stops, 0) : (fi >= 0 && ti >= 0 && fi !== ti ? Math.abs(ti - fi) : 0);
+  const tripMinutes = tripPlan?.minutes ?? (tripRoute ? Math.round(nStops * getMinutesPerStop(tripRoute.route)) : 0);
   const sched = useQuery({
     queryKey: ["lrt-sched", tab === "route" ? fromId : staId],
     queryFn: () => schedFn({ data: { id: tab === "route" ? fromId : staId } }),
@@ -160,9 +198,17 @@ export function LrtPanel() {
           <p className="flex items-center gap-2 font-semibold"><Clock size={16} className="text-primary" />預計行程時間</p>
           {nStops > 0 ? <>
             <p className="mt-1 text-2xl font-bold">約 {tripMinutes} 分鐘</p>
-            <p className="text-xs text-muted-foreground">{tripRoute?.route} 號綫 · {tripRoute?.dir}方向 · {nStops} 個站（按該綫站間平均行車時間計算）</p>
-            <p className="mt-2 text-sm">下班 {tripRoute?.route} 號：<b className="text-primary">{nextOnRoute ? `${nextOnRoute.time}（${nextOnRoute.platform} 號月台）` : sched.isLoading ? "載入中…" : "暫無資料"}</b></p>
-          </> : <p className="mt-1 text-sm text-muted-foreground">請選擇同一條輕鐵路線上、位於起點之後的終點</p>}
+            <div className="text-xs text-muted-foreground">
+              {tripPlan?.segments.map((segment, index) => (
+                <p key={`${segment.route.route}-${segment.route.dir}-${index}`}>
+                  {index > 0 && <span className="mr-1 text-primary">轉乘</span>}
+                  <span style={{ color: routeColor(segment.route.route) }}>{segment.route.route} 號綫</span>：{segment.from} → {segment.to}（{segment.stops} 個站）
+                </p>
+              ))}
+              <p className="mt-1">共 {nStops} 個站{tripPlan && tripPlan.transfers > 0 ? `，${tripPlan.transfers} 次轉乘` : ""}（每段按該綫站間平均行車時間計算，轉乘預留 4 分鐘）</p>
+            </div>
+            <p className="mt-2 text-sm">首段下班 {tripRoute?.route} 號：<b className="text-primary">{nextOnRoute ? `${nextOnRoute.time}（${nextOnRoute.platform} 號月台）` : sched.isLoading ? "載入中…" : "暫無資料"}</b></p>
+          </> : <p className="mt-1 text-sm text-muted-foreground">找不到可行的輕鐵路線，請選擇其他起點和終點</p>}
           {fare.data && (
             <div className="mt-3 border-t pt-3">
               <p className="flex items-center gap-2 font-semibold"><Wallet size={16} className="text-primary" />車資</p>
