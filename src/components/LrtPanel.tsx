@@ -43,7 +43,7 @@ export function LrtPanel() {
   const [stationsExpanded, setStationsExpanded] = useState(false);
 
   const net = useQuery({ queryKey: ["lrt-net"], queryFn: () => netFn(), staleTime: 3600e3 });
-  const routes = net.data ?? [];
+  const routes = useMemo(() => net.data ?? [], [net.data]);
   const cur: LrtRoute | undefined = routes.find((r) => `${r.route}-${r.dir}` === key) ?? routes[0];
   const stops = cur?.stops ?? [];
   const fromId = from || (stops[0]?.id ?? "");
@@ -203,7 +203,7 @@ export function LrtPanel() {
 
   const Trains = () => (
     <div className="mx-5 mt-3 space-y-3">
-      {sched.isLoading && <p className="text-sm text-muted-foreground">載入班次中…</p>}
+      {sched.isLoading && <p className="text-sm text-muted-foreground">載入��次中…</p>}
       {sched.data?.length === 0 && <p className="text-sm text-muted-foreground">暫無班次</p>}
       {sched.data?.map((p) => (
         <div key={p.platform} className="rounded-2xl border bg-card p-4">

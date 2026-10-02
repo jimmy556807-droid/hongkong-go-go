@@ -26,7 +26,9 @@ export function BottomNav() {
             >
               {({ isActive }) => (
                 <>
-                  <span className={`grid h-9 w-9 place-items-center rounded-full ${isActive ? "bg-primary/10" : ""}`}>
+                  <span
+                    className={`grid h-9 w-9 place-items-center rounded-full ${isActive ? "bg-primary/10" : ""}`}
+                  >
                     <Icon size={22} strokeWidth={isActive ? 2.4 : 1.8} />
                   </span>
                   <span className="sr-only">{label}</span>
@@ -56,13 +58,21 @@ export function minsUntil(iso: string) {
 
 export function useNow(ms = 1000) {
   const [now, setNow] = useState(() => Date.now());
-  useEffect(() => { const t = setInterval(() => setNow(Date.now()), ms); return () => clearInterval(t); }, [ms]);
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), ms);
+    return () => clearInterval(t);
+  }, [ms]);
   return now;
 }
 
 export function Countdown({ at, now }: { at: string | number; now: number }) {
   const s = Math.floor((new Date(at).getTime() - now) / 1000);
   if (s <= 30) return <span className="font-bold text-primary">即將到達</span>;
-  const m = Math.floor(s / 60), r = s % 60;
-  return <span className="font-bold tabular-nums">{m}:{String(r).padStart(2, "0")}</span>;
+  const m = Math.floor(s / 60),
+    r = s % 60;
+  return (
+    <span className="font-bold tabular-nums">
+      {m}:{String(r).padStart(2, "0")}
+    </span>
+  );
 }

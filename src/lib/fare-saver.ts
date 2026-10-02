@@ -2,7 +2,12 @@
 export type FareSaver = { name: string; stations: string; lat: number; lng: number };
 
 export const FARE_SAVERS: FareSaver[] = [
-  { name: "中環至半山自動扶手電梯系統", stations: "中環／香港／上環", lat: 22.28429, lng: 114.15578 },
+  {
+    name: "中環至半山自動扶手電梯系統",
+    stations: "中環／香港／上環",
+    lat: 22.28429,
+    lng: 114.15578,
+  },
   { name: "和富中心", stations: "炮台山／北角", lat: 22.29242, lng: 114.19655 },
   { name: "偉利廣場", stations: "上環", lat: 22.28593, lng: 114.14907 },
   { name: "深灣辦公室大樓", stations: "黃竹坑", lat: 22.2462, lng: 114.1701 },
@@ -47,7 +52,9 @@ export const FARE_SAVERS: FareSaver[] = [
 
 export function distKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
   const r = Math.PI / 180;
-  const x = Math.sin(((b.lat - a.lat) * r) / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(((b.lng - a.lng) * r) / 2) ** 2;
+  const x =
+    Math.sin(((b.lat - a.lat) * r) / 2) ** 2 +
+    Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(((b.lng - a.lng) * r) / 2) ** 2;
   return 12742 * Math.asin(Math.sqrt(x));
 }
 
