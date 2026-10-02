@@ -279,19 +279,28 @@ function MtrPage() {
         ))}
       </div>}
 
-      {activeTab === "route" && <>
-      <div className="mx-5 mt-2 grid grid-cols-2 gap-2">
-          <label className="text-xs text-muted-foreground">起點（按路線選擇）
-          <select value={sta} onChange={(e) => setSta(e.target.value)} className="mt-1 w-full rounded-xl border bg-card px-3 py-3 text-base font-semibold text-foreground">
-            <StationOptions mode={mode} />
-          </select>
-        </label>
-        <label className="text-xs text-muted-foreground">終點（按路線選擇）
-          <select value={dest} onChange={(e) => setDest(e.target.value)} className="mt-1 w-full rounded-xl border bg-card px-3 py-3 text-base font-semibold text-foreground">
-            <StationOptions mode={mode} />
-          </select>
-        </label>
-      </div>
+  {activeTab === "route" && <>
+  <div className="mx-5 mt-2 flex items-end gap-2">
+  <label className="min-w-0 flex-1 text-xs text-muted-foreground">起點（按路線選擇）
+  <select value={sta} onChange={(e) => setSta(e.target.value)} className="mt-1 w-full rounded-xl border bg-card px-3 py-3 text-base font-semibold text-foreground">
+  <StationOptions mode={mode} />
+  </select>
+  </label>
+  <button
+    type="button"
+    aria-label="互換起點和終點"
+    title="互換起點和終點"
+    onClick={() => { setSta(dest); setDest(sta); }}
+    className="mb-1 shrink-0 rounded-full border bg-card p-2.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+  >
+    <ArrowRight size={18} aria-hidden="true" className="rotate-90" />
+  </button>
+  <label className="min-w-0 flex-1 text-xs text-muted-foreground">終點（按路線選擇）
+  <select value={dest} onChange={(e) => setDest(e.target.value)} className="mt-1 w-full rounded-xl border bg-card px-3 py-3 text-base font-semibold text-foreground">
+  <StationOptions mode={mode} />
+  </select>
+  </label>
+  </div>
 
       <div className="mx-5 mt-3 rounded-2xl border bg-card p-4 text-sm">
         <p className="flex items-center gap-2 font-semibold"><Clock size={16} className="text-primary" />預計行程時間</p>
