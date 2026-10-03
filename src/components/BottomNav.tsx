@@ -105,6 +105,8 @@ const items = [
 ] as const;
 
 export function BottomNav() {
+  const { locate } = useCurrentLocation();
+
   return (
     <nav className="fixed inset-x-0 bottom-0 z-50 border-t bg-card/95 backdrop-blur">
       <ul className="mx-auto grid max-w-md grid-cols-6">
@@ -114,6 +116,7 @@ export function BottomNav() {
               to={to}
               aria-label={label}
               activeOptions={{ exact: to === "/" }}
+              onClick={to === "/mtr" ? locate : undefined}
               className="flex h-16 flex-col items-center justify-center gap-1 text-muted-foreground transition-colors"
               activeProps={{ className: "!text-primary" }}
             >
