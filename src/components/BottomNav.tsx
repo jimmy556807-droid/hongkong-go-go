@@ -1,6 +1,71 @@
-import { useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { Home, Bus, TrainFront, Ship, CloudSun, TriangleAlert } from "lucide-react";
+import {
+  Home,
+  Bus,
+  TrainFront,
+  Ship,
+  CloudSun,
+  TriangleAlert,
+  LocateFixed,
+  Loader2,
+} from "lucide-react";
+
+type Position = { lat: number; lng: number };
+type LocationState = "idle" | "loading" | "ready" | "denied";
+const LocationContext = createContext<{
+  position: Position | null;
+  status: LocationState;
+  locate: () => void;
+}>({ position: null, status: "idle", locate: () => undefined });
+
+export function LocationProvider({ children }: { children: ReactNode }) {
+  const [position, setPosition] = useState<Position | null>(null);
+  const [status, setStatus] = useState<LocationState>("idle");
+  const locate = useCallback(() => {
+    if (!navigator.geolocation) return setStatus("denied");
+    setStatus("loading");
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        setPosition({ lat: coords.latitude, lng: coords.longitude });
+        setStatus("ready");
+      },
+      () => setStatus("denied"),
+      { enableHighAccuracy: true, maximumAge: 300000, timeout: 8000 },
+    );
+  }, []);
+  useEffect(() => {
+    locate();
+  }, [locate]);
+  return (
+    <LocationContext.Provider value={{ position, status, locate }}>
+      {children}
+    </LocationContext.Provider>
+  );
+}
+
+export function useCurrentLocation() {
+  return useContext(LocationContext);
+}
+
+export function LocationButton() {
+  const { status, locate } = useCurrentLocation();
+  return (
+    <button
+      type="button"
+      onClick={locate}
+      disabled={status === "loading"}
+      aria-label="重新定位目前位置"
+      className="grid size-10 place-items-center rounded-full border bg-card text-primary shadow-sm disabled:cursor-wait disabled:opacity-60"
+    >
+      {status === "loading" ? (
+        <Loader2 size={18} className="animate-spin" />
+      ) : (
+        <LocateFixed size={18} />
+      )}
+    </button>
+  );
+}
 
 const items = [
   { to: "/", icon: Home, label: "首頁" },
@@ -26,7 +91,9 @@ export function BottomNav() {
             >
               {({ isActive }) => (
                 <>
-                  <span className={`grid h-9 w-9 place-items-center rounded-full ${isActive ? "bg-primary/10" : ""}`}>
+                  <span
+                    className={`grid h-9 w-9 place-items-center rounded-full ${isActive ? "bg-primary/10" : ""}`}
+                  >
                     <Icon size={22} strokeWidth={isActive ? 2.4 : 1.8} />
                   </span>
                   <span className="sr-only">{label}</span>
@@ -56,13 +123,21 @@ export function minsUntil(iso: string) {
 
 export function useNow(ms = 1000) {
   const [now, setNow] = useState(() => Date.now());
-  useEffect(() => { const t = setInterval(() => setNow(Date.now()), ms); return () => clearInterval(t); }, [ms]);
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), ms);
+    return () => clearInterval(t);
+  }, [ms]);
   return now;
 }
 
 export function Countdown({ at, now }: { at: string | number; now: number }) {
   const s = Math.floor((new Date(at).getTime() - now) / 1000);
   if (s <= 30) return <span className="font-bold text-primary">即將到達</span>;
-  const m = Math.floor(s / 60), r = s % 60;
-  return <span className="font-bold tabular-nums">{m}:{String(r).padStart(2, "0")}</span>;
+  const m = Math.floor(s / 60),
+    r = s % 60;
+  return (
+    <span className="font-bold tabular-nums">
+      {m}:{String(r).padStart(2, "0")}
+    </span>
+  );
 }
