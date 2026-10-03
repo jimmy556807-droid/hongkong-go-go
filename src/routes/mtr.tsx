@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Clock, MapPin, ArrowRight, Wallet, Navigation, DoorOpen } from "lucide-react";
 import { getMtr } from "@/lib/hk.functions";
 import { getMtrFare } from "@/lib/fare.functions";
@@ -207,12 +207,11 @@ function MtrPage() {
   const [activeTab, setActiveTab] = useState<"route" | "trains" | "station">("trains");
   const [stationListOpen, setStationListOpen] = useState(false);
   const { position } = useCurrentLocation();
-  const locationApplied = useRef(false);
   const now = useNow();
   const stationDetails = STATION_DETAILS[sta];
 
   useEffect(() => {
-    if (!position || locationApplied.current) return;
+    if (!position || activeTab !== "trains") return;
     const nearest = Object.entries(STATION_DETAILS)
       .filter(([code]) => !code.startsWith("LRT"))
       .map(([code, details]) => {
@@ -225,8 +224,7 @@ function MtrPage() {
     const nearestLine = LINES.find((candidate) => candidate.stations.includes(nearest.code));
     if (nearestLine) setLine(nearestLine);
     setSta(nearest.code);
-    locationApplied.current = true;
-  }, [position]);
+  }, [activeTab, position]);
   const fn = useServerFn(getMtr);
   const fareFn = useServerFn(getMtrFare);
 
