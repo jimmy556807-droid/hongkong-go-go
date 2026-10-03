@@ -1,6 +1,99 @@
-import { useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Home, Bus, TrainFront, Ship, CloudSun, TriangleAlert } from "lucide-react";
+import {
+  Home,
+  Bus,
+  TrainFront,
+  Ship,
+  CloudSun,
+  TriangleAlert,
+  LocateFixed,
+  Loader2,
+} from "lucide-react";
+
+type Position = { lat: number; lng: number };
+type LocationState = "idle" | "loading" | "ready" | "denied";
+const LocationContext = createContext<{
+  position: Position | null;
+  status: LocationState;
+  placeName: string | null;
+  locate: () => void;
+}>({ position: null, status: "idle", placeName: null, locate: () => undefined });
+
+async function reverseGeocode(position: Position) {
+  const params = new URLSearchParams({
+    lat: String(position.lat),
+    lon: String(position.lng),
+    format: "jsonv2",
+    "accept-language": "zh-HK",
+  });
+  const response = await fetch(`https://nominatim.openstreetmap.org/reverse?${params}`);
+  if (!response.ok) throw new Error("reverse geocoding failed");
+  const data = (await response.json()) as { display_name?: string; address?: Record<string, string> };
+  // Keep the complete reverse-geocoded name so the label identifies the specific place,
+  // rather than only showing a broad district such as the suburb.
+  return data.display_name?.replace(/, 香港$/, "") ?? null;
+}
+
+export function LocationProvider({ children }: { children: ReactNode }) {
+  const [position, setPosition] = useState<Position | null>(null);
+  const [status, setStatus] = useState<LocationState>("idle");
+  const placeQuery = useQuery({
+    queryKey: ["location-place", position?.lat, position?.lng],
+    queryFn: () => reverseGeocode(position!),
+    enabled: Boolean(position),
+    staleTime: 300000,
+    retry: 1,
+  });
+  const locate = useCallback(() => {
+    if (!navigator.geolocation) return setStatus("denied");
+    setStatus("loading");
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        setPosition({ lat: coords.latitude, lng: coords.longitude });
+        setStatus("ready");
+      },
+      () => setStatus("denied"),
+      { enableHighAccuracy: true, maximumAge: 300000, timeout: 8000 },
+    );
+  }, []);
+  useEffect(() => {
+    locate();
+  }, [locate]);
+  return (
+    <LocationContext.Provider
+      value={{ position, status, placeName: placeQuery.data ?? null, locate }}
+    >
+      {children}
+    </LocationContext.Provider>
+  );
+}
+
+export function useCurrentLocation() {
+  return useContext(LocationContext);
+}
+
+export function LocationButton() {
+  const { status, placeName, locate } = useCurrentLocation();
+  const label = status === "loading" ? "定位中…" : placeName ?? (status === "denied" ? "無法定位" : "目前位置");
+  return (
+    <div className="flex max-w-[190px] items-center gap-2">
+      <span className="truncate text-xs text-muted-foreground" title={placeName ?? undefined}>
+        {label}
+      </span>
+      <button
+        type="button"
+        onClick={locate}
+        disabled={status === "loading"}
+        aria-label="重新定位目前位置"
+        className="grid size-10 shrink-0 place-items-center rounded-full border bg-card text-primary shadow-sm disabled:cursor-wait disabled:opacity-60"
+      >
+        {status === "loading" ? <Loader2 size={18} className="animate-spin" /> : <LocateFixed size={18} />}
+      </button>
+    </div>
+  );
+}
 
 const items = [
   { to: "/", icon: Home, label: "首頁" },
@@ -26,7 +119,9 @@ export function BottomNav() {
             >
               {({ isActive }) => (
                 <>
-                  <span className={`grid h-9 w-9 place-items-center rounded-full ${isActive ? "bg-primary/10" : ""}`}>
+                  <span
+                    className={`grid h-9 w-9 place-items-center rounded-full ${isActive ? "bg-primary/10" : ""}`}
+                  >
                     <Icon size={22} strokeWidth={isActive ? 2.4 : 1.8} />
                   </span>
                   <span className="sr-only">{label}</span>
@@ -56,13 +151,21 @@ export function minsUntil(iso: string) {
 
 export function useNow(ms = 1000) {
   const [now, setNow] = useState(() => Date.now());
-  useEffect(() => { const t = setInterval(() => setNow(Date.now()), ms); return () => clearInterval(t); }, [ms]);
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), ms);
+    return () => clearInterval(t);
+  }, [ms]);
   return now;
 }
 
 export function Countdown({ at, now }: { at: string | number; now: number }) {
   const s = Math.floor((new Date(at).getTime() - now) / 1000);
   if (s <= 30) return <span className="font-bold text-primary">即將到達</span>;
-  const m = Math.floor(s / 60), r = s % 60;
-  return <span className="font-bold tabular-nums">{m}:{String(r).padStart(2, "0")}</span>;
+  const m = Math.floor(s / 60),
+    r = s % 60;
+  return (
+    <span className="font-bold tabular-nums">
+      {m}:{String(r).padStart(2, "0")}
+    </span>
+  );
 }
