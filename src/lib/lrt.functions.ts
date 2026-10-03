@@ -77,5 +77,5 @@ export const getLrtFare = createServerFn({ method: "GET" })
         });
       }
     }
-    return fareCache.get(`${data.from}-${data.to}`) ?? null;
+    return fareCache.get(`${data.from}-${data.to}`) ?? fareCache.get(`${data.to}-${data.from}`) ?? null;
   });

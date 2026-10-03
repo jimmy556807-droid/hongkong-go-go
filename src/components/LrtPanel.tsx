@@ -47,24 +47,90 @@ function StationPicker({ label, value, stations, onChange, exclude }: StationPic
 
 function buildRoute(routes: LrtRoute[], from: string, to: string): PlannedRoute | null {
   if (!from || !to || from === to) return null;
-  const candidates: PlannedRoute[] = [];
-  for (const first of routes) {
-    const fromIndex = first.stops.findIndex((s) => s.id === from);
-    if (fromIndex < 0) continue;
-    const directTo = first.stops.findIndex((s, index) => s.id === to && index > fromIndex);
-      if (directTo >= 0) candidates.push({ segments: [{ route: first.route, dir: first.dir, from: first.stops[fromIndex]!, to: first.stops[directTo]!, stops: first.stops.slice(fromIndex, directTo + 1) }], stops: first.stops.slice(fromIndex, directTo + 1), transfers: 0 });
-    for (const second of routes) {
-      const toIndex = second.stops.findIndex((s) => s.id === to);
-      if (toIndex < 0) continue;
-      const interchangeIndex = first.stops.findIndex((s, index) => index > fromIndex && second.stops.slice(0, toIndex).some((next) => next.id === s.id));
-      if (interchangeIndex < 0) continue;
-      const secondIndex = second.stops.findIndex((s) => s.id === first.stops[interchangeIndex]!.id);
-      const firstStops = first.stops.slice(fromIndex, interchangeIndex + 1);
-      const secondStops = second.stops.slice(secondIndex, toIndex + 1);
-      candidates.push({ segments: [{ route: first.route, dir: first.dir, from: firstStops[0]!, to: firstStops.at(-1)!, stops: firstStops }, { route: second.route, dir: second.dir, from: secondStops[0]!, to: secondStops.at(-1)!, stops: secondStops }], stops: [...firstStops, ...secondStops.slice(1)], transfers: 1 });
+
+  type State = { routeIndex: number; stopIndex: number };
+  type Previous = { state: State; kind: "ride" | "transfer" };
+  const key = (state: State) => `${state.routeIndex}:${state.stopIndex}`;
+  const occurrences = new Map<string, State[]>();
+  routes.forEach((route, routeIndex) => route.stops.forEach((stop, stopIndex) => {
+    const list = occurrences.get(stop.id) ?? [];
+    list.push({ routeIndex, stopIndex });
+    occurrences.set(stop.id, list);
+  }));
+
+  const starts = occurrences.get(from) ?? [];
+  const goals = new Set((occurrences.get(to) ?? []).map(key));
+  if (!starts.length || !goals.size) return null;
+
+  const distance = new Map<string, number>();
+  const previous = new Map<string, Previous>();
+  const queue = starts.map((state) => ({ state, cost: 0 }));
+  starts.forEach((state) => distance.set(key(state), 0));
+
+  while (queue.length) {
+    queue.sort((a, b) => a.cost - b.cost);
+    const current = queue.shift()!;
+    const currentKey = key(current.state);
+    if (current.cost !== distance.get(currentKey)) continue;
+    if (goals.has(currentKey)) {
+      const states: State[] = [current.state];
+      let cursor = currentKey;
+      while (previous.has(cursor)) {
+        const prior = previous.get(cursor)!.state;
+        states.unshift(prior);
+        cursor = key(prior);
+      }
+      const segments: PlannedSegment[] = [];
+      let combinedStops: LrtStop[] = [];
+      let transfers = 0;
+      for (let index = 1; index < states.length; index++) {
+        const before = states[index - 1]!;
+        const after = states[index]!;
+        if (before.routeIndex === after.routeIndex && before.stopIndex !== after.stopIndex) {
+          const route = routes[before.routeIndex]!;
+          const step = after.stopIndex > before.stopIndex ? 1 : -1;
+          const fromStop = route.stops[before.stopIndex]!;
+          const toStop = route.stops[after.stopIndex]!;
+          const last = segments.at(-1);
+          if (last && last.route === route.route && last.dir === route.dir && last.to.id === fromStop.id) {
+            last.stops.push(toStop);
+            last.to = toStop;
+          } else {
+            const stops = [fromStop, toStop];
+            segments.push({ route: route.route, dir: step > 0 ? route.dir : (routes.find((candidate) => candidate.route === route.route && candidate.stops.some((stop) => stop.id === fromStop.id) && candidate.stops.some((stop) => stop.id === toStop.id))?.dir ?? route.dir), from: fromStop, to: toStop, stops });
+          }
+        } else if (before.routeIndex !== after.routeIndex) {
+          transfers++;
+        }
+      }
+      combinedStops = segments.flatMap((segment, segmentIndex) => segmentIndex ? segment.stops.slice(1) : segment.stops);
+      return segments.length ? { segments, stops: combinedStops, transfers } : null;
+    }
+
+    const route = routes[current.state.routeIndex]!;
+    for (const nextIndex of [current.state.stopIndex - 1, current.state.stopIndex + 1]) {
+      if (nextIndex < 0 || nextIndex >= route.stops.length) continue;
+      const next = { routeIndex: current.state.routeIndex, stopIndex: nextIndex };
+      const nextKey = key(next);
+      const nextCost = current.cost + 1;
+      if (nextCost < (distance.get(nextKey) ?? Infinity)) {
+        distance.set(nextKey, nextCost);
+        previous.set(nextKey, { state: current.state, kind: "ride" });
+        queue.push({ state: next, cost: nextCost });
+      }
+    }
+    for (const transfer of occurrences.get(route.stops[current.state.stopIndex]!.id) ?? []) {
+      if (transfer.routeIndex === current.state.routeIndex) continue;
+      const transferKey = key(transfer);
+      const transferCost = current.cost + 3;
+      if (transferCost < (distance.get(transferKey) ?? Infinity)) {
+        distance.set(transferKey, transferCost);
+        previous.set(transferKey, { state: current.state, kind: "transfer" });
+        queue.push({ state: transfer, cost: transferCost });
+      }
     }
   }
-  return candidates.sort((a, b) => a.stops.length + a.transfers * 2 - (b.stops.length + b.transfers * 2))[0] ?? null;
+  return null;
 }
 
 export function LrtPanel() {
