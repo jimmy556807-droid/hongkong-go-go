@@ -30,15 +30,13 @@ function StationPicker({ label, value, stations, onChange, exclude }: StationPic
     <span>{label}</span>
     <button type="button" aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen((current) => !current)} className="mt-1 flex w-full items-center justify-between rounded-xl border bg-card px-3 py-3 text-left text-base font-semibold text-foreground">
       <span className="flex min-w-0 items-center gap-2 truncate">
-        {selected ? <span className="shrink-0 text-sm font-bold" aria-label={`途經 ${selected.routes.join("、")} 號線`} style={{ color: routeColor(selected.routes[0] ?? "") }}>{selected.routes.join("、")} 號線</span> : null}
-        {selected ? `${selected.name}（${selected.code}）` : "請選擇車站"}
+        {selected ? <span className="truncate" aria-label={`途經 ${selected.routes.join("、")} 號線`} style={{ color: routeColor(selected.routes[0] ?? "") }}>{selected.name}（{selected.code}）</span> : "請選擇車站"}
       </span>
       <ChevronDown size={17} className={`shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
     </button>
     {open && <div role="listbox" aria-label={`${label}站點`} className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-xl border bg-card p-1 shadow-lg">
       {options.map((station) => <button type="button" role="option" aria-selected={station.id === value} key={station.id} onClick={() => { onChange(station.id); setOpen(false); }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-foreground hover:bg-muted">
-        <span className="shrink-0 text-xs font-bold" aria-label={`途經 ${station.routes.join("、")} 號線`} style={{ color: routeColor(station.routes[0] ?? "") }}>{station.routes.join("、")} 號線</span>
-        <span className="min-w-0 flex-1 truncate">{station.name}（{station.code}）</span>
+        <span className="min-w-0 flex-1 truncate" aria-label={`途經 ${station.routes.join("、")} 號線`} style={{ color: routeColor(station.routes[0] ?? "") }}>{station.name}（{station.code}）</span>
         {station.id === value && <Check size={15} className="shrink-0 text-primary" />}
       </button>)}
     </div>}
