@@ -615,24 +615,49 @@ function MtrPage() {
                 </p>
               )}
               <div className="mx-5 mt-4 space-y-4">
-                {groups.map((g) => (
-                  <div key={g.k} className="overflow-hidden rounded-2xl border bg-card">
-                    <div
-                      className="px-4 py-2 text-sm font-semibold text-white"
-                      style={{ background: boardLine.color }}
-                    >
-                      往 {STATIONS[g.t[0]!.dest] ?? g.t[0]!.dest}
-                    </div>
-                    {g.t.map((t, k) => (
-                      <div key={k} className="flex items-center justify-between border-t px-4 py-3">
-                        <span className="text-sm text-muted-foreground">
-                          {t.plat} 號月台 · {t.time.slice(11, 16)}
-                        </span>
-                        <Countdown at={toHkIso(t.time)} now={now} />
+                {groups.map((g) => {
+                  const destinationGroups =
+                    boardLine.code === "EAL"
+                      ? Array.from(
+                          g.t.reduce((map, train) => {
+                            const destination = train.dest === "LOW" || train.dest === "羅湖"
+                              ? "羅湖"
+                              : train.dest === "LMC" || train.dest === "落馬洲"
+                                ? "落馬洲"
+                                : STATIONS[train.dest] ?? train.dest;
+                            const trains = map.get(destination) ?? [];
+                            trains.push(train);
+                            map.set(destination, trains);
+                            return map;
+                          }, new Map<string, typeof g.t>()),
+                          ([destination, trains]) => ({ destination, trains }),
+                        )
+                      : [
+                          {
+                            destination: STATIONS[g.t[0]!.dest] ?? g.t[0]!.dest,
+                            trains: g.t,
+                          },
+                        ];
+
+                  return destinationGroups.map(({ destination, trains }) => (
+                    <div key={`${g.k}-${destination}`} className="overflow-hidden rounded-2xl border bg-card">
+                      <div
+                        className="px-4 py-2 text-sm font-semibold text-white"
+                        style={{ background: boardLine.color }}
+                      >
+                        往 {destination}
                       </div>
-                    ))}
-                  </div>
-                ))}
+                      {trains.map((t, k) => (
+                        <div key={k} className="flex items-center justify-between border-t px-4 py-3">
+                          <span className="text-sm text-muted-foreground">
+                            {t.plat} 號月台 · {t.time.slice(11, 16)}
+                          </span>
+                          <Countdown at={toHkIso(t.time)} now={now} />
+                        </div>
+                      ))}
+                    </div>
+                  ));
+                })}
               </div>
             </>
           )}
