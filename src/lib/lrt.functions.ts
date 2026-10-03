@@ -52,5 +52,5 @@ export const getLrtFare = createServerFn({ method: "GET" })
       for (const c of parseCsv(await r.text()))
         fareCache.set(`${c[0]}-${c[1]}`, { adult: +c[2]!, child: +c[3]!, elder: +c[4]!, student: +c[6]!, single: +c[8]! });
     }
-    return fareCache.get(`${data.from}-${data.to}`) ?? null;
+    return fareCache.get(`${data.from}-${data.to}`) ?? fareCache.get(`${data.to}-${data.from}`) ?? null;
   });

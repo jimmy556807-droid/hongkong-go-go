@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ArrowRight, Clock, MapPin, TramFront, Wallet } from "lucide-react";
-import { getLrtNetwork, getLrtSchedule, getLrtFare, type LrtRoute } from "@/lib/lrt.functions";
+import { getLrtNetwork, getLrtSchedule, getLrtFare, type LrtRoute, type LrtStop } from "@/lib/lrt.functions";
 
 const MIN_PER_STOP = 1.8;
 const LRT_COLOR = "#D3A809";
@@ -10,31 +10,29 @@ const LRT_ROUTE_COLORS = ["#0072BC", "#E87511", "#7B3F98", "#008A45", "#D33F49",
 const routeColor = (route: string) => LRT_ROUTE_COLORS[(Number(route) || 0) % LRT_ROUTE_COLORS.length];
 
 type StopOption = { id: string; name: string; code: string; routes: string[] };
-type PlannedRoute = { route: string; dir: string; stops: { id: string; name: string; code: string; seq: number }[]; transfers: number };
+type PlannedSegment = { route: string; dir: string; from: LrtStop; to: LrtStop; stops: LrtStop[] };
+type PlannedRoute = { segments: PlannedSegment[]; stops: LrtStop[]; transfers: number };
 
 function buildRoute(routes: LrtRoute[], from: string, to: string): PlannedRoute | null {
   if (!from || !to || from === to) return null;
-  const direct = routes
-    .map((route) => ({ route, from: route.stops.findIndex((s) => s.id === from), to: route.stops.findIndex((s) => s.id === to) }))
-    .filter((item) => item.from >= 0 && item.to > item.from)
-    .sort((a, b) => a.to - a.from - (b.to - b.from))[0];
-  if (direct) return { route: direct.route.route, dir: direct.route.dir, stops: direct.route.stops.slice(direct.from, direct.to + 1), transfers: 0 };
-
-  const fromRoutes = routes.filter((r) => r.stops.some((s) => s.id === from));
-  const toRoutes = routes.filter((r) => r.stops.some((s) => s.id === to));
-  let best: PlannedRoute | null = null;
-  for (const first of fromRoutes) {
+  const candidates: PlannedRoute[] = [];
+  for (const first of routes) {
     const fromIndex = first.stops.findIndex((s) => s.id === from);
-    for (const second of toRoutes) {
+    if (fromIndex < 0) continue;
+    const directTo = first.stops.findIndex((s, index) => s.id === to && index > fromIndex);
+    if (directTo >= 0) candidates.push({ segments: [{ route: first.route, dir: first.dir, from: first.stops[fromIndex], to: first.stops[directTo], stops: first.stops.slice(fromIndex, directTo + 1) }], stops: first.stops.slice(fromIndex, directTo + 1), transfers: 0 });
+    for (const second of routes) {
       const toIndex = second.stops.findIndex((s) => s.id === to);
-      const interchange = first.stops.slice(fromIndex + 1).find((s) => second.stops.slice(0, toIndex).some((next) => next.id === s.id));
-      if (!interchange) continue;
-      const secondIndex = second.stops.findIndex((s) => s.id === interchange.id);
-      const candidateStops = [...first.stops.slice(fromIndex, first.stops.findIndex((s) => s.id === interchange.id) + 1), ...second.stops.slice(secondIndex + 1, toIndex + 1)];
-      if (!best || candidateStops.length < best.stops.length) best = { route: `${first.route} → ${second.route}`, dir: `${first.dir} / ${second.dir}`, stops: candidateStops, transfers: 1 };
+      if (toIndex < 0) continue;
+      const interchangeIndex = first.stops.findIndex((s, index) => index > fromIndex && second.stops.slice(0, toIndex).some((next) => next.id === s.id));
+      if (interchangeIndex < 0) continue;
+      const secondIndex = second.stops.findIndex((s) => s.id === first.stops[interchangeIndex].id);
+      const firstStops = first.stops.slice(fromIndex, interchangeIndex + 1);
+      const secondStops = second.stops.slice(secondIndex, toIndex + 1);
+      candidates.push({ segments: [{ route: first.route, dir: first.dir, from: firstStops[0], to: firstStops.at(-1)!, stops: firstStops }, { route: second.route, dir: second.dir, from: secondStops[0], to: secondStops.at(-1)!, stops: secondStops }], stops: [...firstStops, ...secondStops.slice(1)], transfers: 1 });
     }
   }
-  return best;
+  return candidates.sort((a, b) => a.stops.length + a.transfers * 2 - (b.stops.length + b.transfers * 2))[0] ?? null;
 }
 
 export function LrtPanel() {
@@ -97,10 +95,10 @@ export function LrtPanel() {
       </div>
       <div className="mx-5 mt-3 rounded-2xl border bg-card p-4 text-sm shadow-sm">
         {!plan ? <p className="text-muted-foreground">請選擇不同的起點及終點</p> : <>
-          <div className="flex items-center justify-between gap-3"><p className="flex items-center gap-2 font-semibold"><Clock size={16} className="text-primary" />預計行程時間</p><span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary">約 {Math.round((plan.stops.length - 1) * MIN_PER_STOP + plan.transfers * 5)} 分鐘</span></div>
+          <div className="flex items-center justify-between gap-3"><p className="flex items-center gap-2 font-semibold"><Clock size={16} className="text-primary" />預計行程時間</p><span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary">約 {Math.ceil((plan.stops.length - 1) * MIN_PER_STOP + plan.transfers * 4 + 2)} 分鐘</span></div>
           <p className="mt-2 text-base font-semibold">{allStations.find((s) => s.id === fromId)?.name} <ArrowRight className="mx-1 inline text-muted-foreground" size={15} /> {allStations.find((s) => s.id === toId)?.name}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{plan.stops.length - 1} 個站{plan.transfers ? ` · 轉乘 ${plan.transfers} 次` : ` · ${plan.route} 號車`}</p>
-          <div className="mt-3 flex flex-wrap items-center gap-1.5">{plan.stops.map((stop, index) => <span key={`${stop.id}-${index}`} className="flex items-center gap-1 text-xs"><span className="rounded-lg px-2 py-1 font-semibold text-white" style={{ background: routeColor(plan.route.split(" → ")[index === 0 ? 0 : 1] ?? plan.route) }}>{stop.name}</span>{index < plan.stops.length - 1 && <ArrowRight size={11} className="text-muted-foreground" />}</span>)}</div>
+<p className="mt-1 text-xs text-muted-foreground">{plan.stops.length - 1} 個站 · {plan.transfers ? `轉乘 ${plan.transfers} 次` : `直達 ${plan.segments[0].route} 號車`}</p>
+  <div className="mt-3 space-y-2">{plan.segments.map((segment, segmentIndex) => <div key={`${segment.route}-${segmentIndex}`} className="rounded-xl bg-muted/50 p-2.5"><p className="text-xs font-semibold">乘搭 <span className="text-primary">{segment.route} 號車</span>（往 {segment.dir}）</p><p className="mt-1 text-xs text-muted-foreground">{segment.from.name} → {segment.to.name} · {segment.stops.length - 1} 個站</p></div>)}{plan.transfers > 0 && <p className="flex items-center gap-1 text-xs font-semibold text-primary"><ArrowRight size={12} />在 {plan.segments[0].to.name}：{plan.segments[0].route} 號車轉乘 {plan.segments[1].route} 號車</p>}</div>
           <div className="mt-4 border-t pt-3"><p className="flex items-center gap-2 font-semibold"><Wallet size={16} className="text-primary" />對應車資</p>{fare.data ? <div className="mt-2 grid grid-cols-2 gap-1.5 text-xs sm:grid-cols-3">{([["八達通成人", fare.data.adult], ["單程票成人", fare.data.single], ["八達通學生", fare.data.student], ["八達通小童", fare.data.child], ["長者優惠", fare.data.elder]] as const).map(([label, value]) => <div key={label} className="flex justify-between rounded-lg bg-muted/60 px-2.5 py-1.5"><span className="text-muted-foreground">{label}</span><b>${value.toFixed(1)}</b></div>)}</div> : <p className="mt-1 text-xs text-muted-foreground">轉乘路線或暫未有對應車資資料，請以現場收費為準</p>}</div>
         </>}
       </div>
