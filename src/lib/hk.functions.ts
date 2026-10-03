@@ -339,7 +339,9 @@ export const getNearbyGmbRoutes = createServerFn({ method: "GET" })
       if (!closest || closest.dist > 800) continue;
       const etaRes = await fetch(`${GMB_API}/eta/stop/${closest.id}`).catch(() => null);
       const payload: any = etaRes?.ok ? await etaRes.json().catch(() => null) : null;
-      const etas = (payload?.data?.eta ?? payload?.data?.etas ?? []).slice(0, 3).map((e: any) => e.diff ?? e.timestamp ?? e.eta).filter(Boolean);
+      // data 係陣列：每條路線一個 entry，入面再有 eta 陣列
+      const entries = Array.isArray(payload?.data) ? payload.data : (payload?.data?.eta ?? payload?.data?.etas ?? []);
+      const etas = entries.flatMap((e: any) => Array.isArray(e?.eta) ? e.eta : [e]).slice(0, 3).map((e: any) => e.diff ?? e.timestamp ?? e.eta).filter((x: any) => x != null && x !== "");
       nearby.push({ route: entry.route.name, dest: entry.route.end, stopName: closest.name, dist: closest.dist, etas, co: "GMB", routeId: entry.routeId });
     }
     return nearby.sort((a, b) => a.dist - b.dist).slice(0, 12);
@@ -351,7 +353,7 @@ export const getGmbEta = createServerFn({ method: "GET" })
     const r = await fetch(`${GMB_API}/route-stop/${data.routeId}/${data.routeSeq}`);
     if (!r.ok) throw new Error("無法取得專綫小巴車站資料");
     const payload: any = await r.json();
-    const stops = payload?.data?.route_stop ?? payload?.data?.stops ?? payload?.data ?? [];
+    const stops = payload?.data?.route_stops ?? payload?.data?.route_stop ?? payload?.data?.stops ?? payload?.data ?? [];
     return Promise.all((Array.isArray(stops) ? stops : []).map(async (s: any) => {
       const stopSeq = Number(s.stop_seq ?? s.stop_sequence ?? s.seq);
       const etaRes = await fetch(`${GMB_API}/eta/route-stop/${data.routeId}/${data.routeSeq}/${stopSeq}`).catch(() => null);
