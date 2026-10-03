@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowRight, Check, ChevronDown, Clock, MapPin, TramFront, Wallet } from "lucide-react";
+import { ArrowRight, ArrowUpDown, Check, ChevronDown, Clock, MapPin, TramFront, Wallet } from "lucide-react";
 import { getLrtNetwork, getLrtSchedule, getLrtFare, type LrtRoute, type LrtStop } from "@/lib/lrt.functions";
 
 const MIN_PER_STOP = 1.8;
@@ -80,12 +80,22 @@ export function LrtPanel() {
   const routes = net.data ?? [];
   const allStations = useMemo<StopOption[]>(() => {
     const map = new Map<string, StopOption>();
-    for (const route of routes) for (const stop of route.stops) {
+    const order = new Map<string, { route: number; stop: number }>();
+    for (const route of routes) for (const [stopIndex, stop] of route.stops.entries()) {
       const item = map.get(stop.id) ?? { id: stop.id, name: stop.name, code: stop.code, routes: [] };
       if (!item.routes.includes(route.route)) item.routes.push(route.route);
+      const routeNumber = Number(route.route) || Number.MAX_SAFE_INTEGER;
+      const current = order.get(stop.id);
+      if (!current || routeNumber < current.route || (routeNumber === current.route && stopIndex < current.stop)) {
+        order.set(stop.id, { route: routeNumber, stop: stopIndex });
+      }
       map.set(stop.id, item);
     }
-    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "zh-HK"));
+    return [...map.values()].sort((a, b) => {
+      const left = order.get(a.id)!;
+      const right = order.get(b.id)!;
+      return left.route - right.route || left.stop - right.stop || a.name.localeCompare(b.name, "zh-HK");
+    });
   }, [routes]);
   const fromId = from || allStations[0]?.id || "";
   const toId = to || allStations.find((s) => s.id !== fromId)?.id || "";
@@ -108,8 +118,11 @@ export function LrtPanel() {
     {tab === "route" && <>
       <div className="mx-5 mt-3 rounded-2xl border bg-card p-4 shadow-sm">
         <div className="flex items-center gap-2"><div className="rounded-full bg-primary/10 p-2 text-primary"><TramFront size={18} /></div><div><h2 className="font-bold">輕鐵路線規劃</h2><p className="text-xs text-muted-foreground">選擇任意站點，查看行程時間及車資</p></div></div>
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-end">
           <StationPicker label="起點" value={fromId} stations={allStations} onChange={setFrom} exclude={toId} />
+          <button type="button" aria-label="互換起點及終點" title="互換起點及終點" onClick={() => { setFrom(toId); setTo(fromId); }} className="mx-auto rounded-full border bg-card p-2 text-primary transition hover:bg-muted sm:mb-1">
+            <ArrowUpDown size={17} />
+          </button>
           <StationPicker label="終點" value={toId} stations={allStations} onChange={setTo} exclude={fromId} />
         </div>
         <div className="mt-4 flex items-center gap-2 rounded-xl bg-muted/60 px-3 py-2 text-xs text-muted-foreground"><span className="h-2 w-2 rounded-full bg-primary" />支援不同路線之間轉乘，時間為估算值</div>
@@ -120,7 +133,7 @@ export function LrtPanel() {
           <p className="mt-2 text-base font-semibold">{allStations.find((s) => s.id === fromId)?.name} <ArrowRight className="mx-1 inline text-muted-foreground" size={15} /> {allStations.find((s) => s.id === toId)?.name}</p>
 <p className="mt-1 text-xs text-muted-foreground">{plan.stops.length - 1} 個站 · {plan.transfers ? `轉乘 ${plan.transfers} 次` : `直達 ${plan.segments[0]!.route} 號車`}</p>
   <div className="mt-3 space-y-2">{plan.segments.map((segment, segmentIndex) => <div key={`${segment.route}-${segmentIndex}`} className="rounded-xl bg-muted/50 p-2.5"><p className="text-xs font-semibold">乘搭 <span className="text-primary">{segment.route} 號車</span>（往 {segment.dir}）</p><p className="mt-1 text-xs text-muted-foreground">{segment.from.name} → {segment.to.name} · {segment.stops.length - 1} 個站</p></div>)}{plan.transfers > 0 && <p className="flex items-center gap-1 text-xs font-semibold text-primary"><ArrowRight size={12} />在 {plan.segments[0]!.to.name}：{plan.segments[0]!.route} 號車轉乘 {plan.segments[1]!.route} 號車</p>}</div>
-          <div className="mt-4 border-t pt-3"><p className="flex items-center gap-2 font-semibold"><Wallet size={16} className="text-primary" />對應車資</p>{fare.data ? <div className="mt-2 grid grid-cols-2 gap-1.5 text-xs sm:grid-cols-3">{([["八達通成人", fare.data.octopusAdult], ["單程票成人", fare.data.singleAdult], ["八達通學生", fare.data.octopusStudent], ["八達通小童", fare.data.octopusChild], ["八達通長者", fare.data.octopusElderly], ["八達通傷健人士", fare.data.octopusPwd], ["八達通 JoyYou 60–64歲", fare.data.octopusJoyYouSixty], ["單程票小童", fare.data.singleChild], ["單程票長者", fare.data.singleElderly]] as const).map(([label, value]) => <div key={label} className="flex justify-between gap-2 rounded-lg bg-muted/60 px-2.5 py-1.5"><span className="text-muted-foreground">{label}</span><b>${value.toFixed(1)}</b></div>)}</div> : <p className="mt-1 text-xs text-muted-foreground">暫未有此起終點的車資資料，請以現場收費為準</p>}</div>
+          <div className="mt-4 border-t pt-3"><p className="flex items-center gap-2 font-semibold"><Wallet size={16} className="text-primary" />對應車資</p>{fare.data ? <div className="mt-2 grid grid-cols-2 gap-1.5 text-xs sm:grid-cols-3">{([["八達通成人", fare.data.octopusAdult], ["單程票成人", fare.data.singleAdult], ["八達通學生", fare.data.octopusStudent], ["八達通小童", fare.data.octopusChild], ["八達通長者", fare.data.octopusElderly]] as const).map(([label, value]) => <div key={label} className="flex justify-between gap-2 rounded-lg bg-muted/60 px-2.5 py-1.5"><span className="text-muted-foreground">{label}</span><b>${value.toFixed(1)}</b></div>)}</div> : <p className="mt-1 text-xs text-muted-foreground">暫未有此起終點的車資資料，請以現場收費為準</p>}</div>
         </>}
       </div>
     </>}
