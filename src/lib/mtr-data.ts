@@ -93,6 +93,11 @@ for (const [code, coordinates] of Object.entries(ADDITIONAL_STATION_COORDINATES)
   }
 }
 
+// Apply the supplied list after all station records exist, so every listed station is populated.
+for (const [code, toiletLocation] of Object.entries(TOILET_LOCATIONS)) {
+  if (STATION_DETAILS[code]) STATION_DETAILS[code].toiletLocation = toiletLocation;
+}
+
 for (const [code, [openingHours, firstTrain, lastTrain]] of Object.entries(SERVICE_HOURS)) {
   if (STATION_DETAILS[code]) STATION_DETAILS[code] = { ...STATION_DETAILS[code], openingHours, firstTrain, lastTrain };
 }
