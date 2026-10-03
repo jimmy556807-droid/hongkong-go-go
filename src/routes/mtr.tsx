@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Clock, MapPin, ArrowRight, Wallet, Navigation, DoorOpen } from "lucide-react";
 import { getMtr } from "@/lib/hk.functions";
 import { getMtrFare } from "@/lib/fare.functions";
@@ -83,7 +83,7 @@ function AirportExpressFareBox({ from, to }: { from: string; to: string }) {
 }
 
 import { LINES, STATIONS, STATION_DETAILS } from "@/lib/mtr-data";
-import { PageHeader, Countdown, useNow } from "@/components/BottomNav";
+import { PageHeader, Countdown, useCurrentLocation, useNow } from "@/components/BottomNav";
 
 export const Route = createFileRoute("/mtr")({
   head: () => ({
@@ -206,8 +206,27 @@ function MtrPage() {
   const [dest, setDest] = useState("TSW");
   const [activeTab, setActiveTab] = useState<"route" | "trains" | "station">("trains");
   const [stationListOpen, setStationListOpen] = useState(false);
+  const { position } = useCurrentLocation();
+  const locationApplied = useRef(false);
   const now = useNow();
   const stationDetails = STATION_DETAILS[sta];
+
+  useEffect(() => {
+    if (!position || locationApplied.current) return;
+    const nearest = Object.entries(STATION_DETAILS)
+      .filter(([code]) => !code.startsWith("LRT"))
+      .map(([code, details]) => {
+        const [lat, lng] = details.coordinates;
+        const distance = (lat - position.lat) ** 2 + (lng - position.lng) ** 2;
+        return { code, distance };
+      })
+      .sort((a, b) => a.distance - b.distance)[0];
+    if (!nearest) return;
+    const nearestLine = LINES.find((candidate) => candidate.stations.includes(nearest.code));
+    if (nearestLine) setLine(nearestLine);
+    setSta(nearest.code);
+    locationApplied.current = true;
+  }, [position]);
   const fn = useServerFn(getMtr);
   const fareFn = useServerFn(getMtrFare);
 

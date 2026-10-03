@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import {
   Home,
@@ -16,12 +17,34 @@ type LocationState = "idle" | "loading" | "ready" | "denied";
 const LocationContext = createContext<{
   position: Position | null;
   status: LocationState;
+  placeName: string | null;
   locate: () => void;
-}>({ position: null, status: "idle", locate: () => undefined });
+}>({ position: null, status: "idle", placeName: null, locate: () => undefined });
+
+async function reverseGeocode(position: Position) {
+  const params = new URLSearchParams({
+    lat: String(position.lat),
+    lon: String(position.lng),
+    format: "jsonv2",
+    "accept-language": "zh-HK",
+  });
+  const response = await fetch(`https://nominatim.openstreetmap.org/reverse?${params}`);
+  if (!response.ok) throw new Error("reverse geocoding failed");
+  const data = (await response.json()) as { display_name?: string; address?: Record<string, string> };
+  const address = data.address ?? {};
+  return address["suburb"] ?? address["neighbourhood"] ?? address["quarter"] ?? address["city_district"] ?? data.display_name?.split(",")[0] ?? null;
+}
 
 export function LocationProvider({ children }: { children: ReactNode }) {
   const [position, setPosition] = useState<Position | null>(null);
   const [status, setStatus] = useState<LocationState>("idle");
+  const placeQuery = useQuery({
+    queryKey: ["location-place", position?.lat, position?.lng],
+    queryFn: () => reverseGeocode(position!),
+    enabled: Boolean(position),
+    staleTime: 300000,
+    retry: 1,
+  });
   const locate = useCallback(() => {
     if (!navigator.geolocation) return setStatus("denied");
     setStatus("loading");
@@ -38,7 +61,9 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     locate();
   }, [locate]);
   return (
-    <LocationContext.Provider value={{ position, status, locate }}>
+    <LocationContext.Provider
+      value={{ position, status, placeName: placeQuery.data ?? null, locate }}
+    >
       {children}
     </LocationContext.Provider>
   );
@@ -49,21 +74,23 @@ export function useCurrentLocation() {
 }
 
 export function LocationButton() {
-  const { status, locate } = useCurrentLocation();
+  const { status, placeName, locate } = useCurrentLocation();
+  const label = status === "loading" ? "定位中…" : placeName ?? (status === "denied" ? "無法定位" : "目前位置");
   return (
-    <button
-      type="button"
-      onClick={locate}
-      disabled={status === "loading"}
-      aria-label="重新定位目前位置"
-      className="grid size-10 place-items-center rounded-full border bg-card text-primary shadow-sm disabled:cursor-wait disabled:opacity-60"
-    >
-      {status === "loading" ? (
-        <Loader2 size={18} className="animate-spin" />
-      ) : (
-        <LocateFixed size={18} />
-      )}
-    </button>
+    <div className="flex max-w-[190px] items-center gap-2">
+      <span className="truncate text-xs text-muted-foreground" title={placeName ?? undefined}>
+        {label}
+      </span>
+      <button
+        type="button"
+        onClick={locate}
+        disabled={status === "loading"}
+        aria-label="重新定位目前位置"
+        className="grid size-10 shrink-0 place-items-center rounded-full border bg-card text-primary shadow-sm disabled:cursor-wait disabled:opacity-60"
+      >
+        {status === "loading" ? <Loader2 size={18} className="animate-spin" /> : <LocateFixed size={18} />}
+      </button>
+    </div>
   );
 }
 
