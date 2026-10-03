@@ -31,8 +31,9 @@ async function reverseGeocode(position: Position) {
   const response = await fetch(`https://nominatim.openstreetmap.org/reverse?${params}`);
   if (!response.ok) throw new Error("reverse geocoding failed");
   const data = (await response.json()) as { display_name?: string; address?: Record<string, string> };
-  const address = data.address ?? {};
-  return address["suburb"] ?? address["neighbourhood"] ?? address["quarter"] ?? address["city_district"] ?? data.display_name?.split(",")[0] ?? null;
+  // Keep the complete reverse-geocoded name so the label identifies the specific place,
+  // rather than only showing a broad district such as the suburb.
+  return data.display_name?.replace(/, 香港$/, "") ?? null;
 }
 
 export function LocationProvider({ children }: { children: ReactNode }) {
