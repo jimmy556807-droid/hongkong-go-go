@@ -206,7 +206,7 @@ function MtrPage() {
   const [dest, setDest] = useState("TSW");
   const [activeTab, setActiveTab] = useState<"route" | "trains" | "station">("trains");
   const [stationListOpen, setStationListOpen] = useState(false);
-  const { position } = useCurrentLocation();
+  const { position, locate } = useCurrentLocation();
   const now = useNow();
   const stationDetails = STATION_DETAILS[sta];
 
@@ -281,8 +281,9 @@ function MtrPage() {
         ).map(([value, label]) => (
           <button
             key={value}
-            onClick={() => {
-              setMode(value);
+  onClick={() => {
+  setMode(value);
+  if (value === "mtr") locate();
               const firstLine = LINES.find((candidate) =>
                 value === "lrt"
                   ? candidate.code.startsWith("LRT")
