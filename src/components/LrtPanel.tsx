@@ -20,16 +20,16 @@ function buildRoute(routes: LrtRoute[], from: string, to: string): PlannedRoute 
     const fromIndex = first.stops.findIndex((s) => s.id === from);
     if (fromIndex < 0) continue;
     const directTo = first.stops.findIndex((s, index) => s.id === to && index > fromIndex);
-    if (directTo >= 0) candidates.push({ segments: [{ route: first.route, dir: first.dir, from: first.stops[fromIndex], to: first.stops[directTo], stops: first.stops.slice(fromIndex, directTo + 1) }], stops: first.stops.slice(fromIndex, directTo + 1), transfers: 0 });
+      if (directTo >= 0) candidates.push({ segments: [{ route: first.route, dir: first.dir, from: first.stops[fromIndex]!, to: first.stops[directTo]!, stops: first.stops.slice(fromIndex, directTo + 1) }], stops: first.stops.slice(fromIndex, directTo + 1), transfers: 0 });
     for (const second of routes) {
       const toIndex = second.stops.findIndex((s) => s.id === to);
       if (toIndex < 0) continue;
       const interchangeIndex = first.stops.findIndex((s, index) => index > fromIndex && second.stops.slice(0, toIndex).some((next) => next.id === s.id));
       if (interchangeIndex < 0) continue;
-      const secondIndex = second.stops.findIndex((s) => s.id === first.stops[interchangeIndex].id);
+      const secondIndex = second.stops.findIndex((s) => s.id === first.stops[interchangeIndex]!.id);
       const firstStops = first.stops.slice(fromIndex, interchangeIndex + 1);
       const secondStops = second.stops.slice(secondIndex, toIndex + 1);
-      candidates.push({ segments: [{ route: first.route, dir: first.dir, from: firstStops[0], to: firstStops.at(-1)!, stops: firstStops }, { route: second.route, dir: second.dir, from: secondStops[0], to: secondStops.at(-1)!, stops: secondStops }], stops: [...firstStops, ...secondStops.slice(1)], transfers: 1 });
+      candidates.push({ segments: [{ route: first.route, dir: first.dir, from: firstStops[0]!, to: firstStops.at(-1)!, stops: firstStops }, { route: second.route, dir: second.dir, from: secondStops[0]!, to: secondStops.at(-1)!, stops: secondStops }], stops: [...firstStops, ...secondStops.slice(1)], transfers: 1 });
     }
   }
   return candidates.sort((a, b) => a.stops.length + a.transfers * 2 - (b.stops.length + b.transfers * 2))[0] ?? null;
@@ -59,7 +59,7 @@ export function LrtPanel() {
   const toId = to || allStations.find((s) => s.id !== fromId)?.id || "";
   const staId = sta || fromId;
   const plan = useMemo(() => buildRoute(routes, fromId, toId), [routes, fromId, toId]);
-  const fare = useQuery({ queryKey: ["lrt-fare", fromId, toId], queryFn: () => fareFn({ data: { from: fromId, to: toId } }), enabled: Boolean(plan && plan.transfers === 0) });
+  const fare = useQuery({ queryKey: ["lrt-fare", fromId, toId], queryFn: () => fareFn({ data: { from: fromId, to: toId } }), enabled: Boolean(plan) });
   const sched = useQuery({ queryKey: ["lrt-sched", staId], queryFn: () => schedFn({ data: { id: staId } }), enabled: Boolean(staId), refetchInterval: 20000 });
   const staInfo = allStations.find((station) => station.id === staId);
 
@@ -97,9 +97,9 @@ export function LrtPanel() {
         {!plan ? <p className="text-muted-foreground">請選擇不同的起點及終點</p> : <>
           <div className="flex items-center justify-between gap-3"><p className="flex items-center gap-2 font-semibold"><Clock size={16} className="text-primary" />預計行程時間</p><span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary">約 {Math.ceil((plan.stops.length - 1) * MIN_PER_STOP + plan.transfers * 4 + 2)} 分鐘</span></div>
           <p className="mt-2 text-base font-semibold">{allStations.find((s) => s.id === fromId)?.name} <ArrowRight className="mx-1 inline text-muted-foreground" size={15} /> {allStations.find((s) => s.id === toId)?.name}</p>
-<p className="mt-1 text-xs text-muted-foreground">{plan.stops.length - 1} 個站 · {plan.transfers ? `轉乘 ${plan.transfers} 次` : `直達 ${plan.segments[0].route} 號車`}</p>
-  <div className="mt-3 space-y-2">{plan.segments.map((segment, segmentIndex) => <div key={`${segment.route}-${segmentIndex}`} className="rounded-xl bg-muted/50 p-2.5"><p className="text-xs font-semibold">乘搭 <span className="text-primary">{segment.route} 號車</span>（往 {segment.dir}）</p><p className="mt-1 text-xs text-muted-foreground">{segment.from.name} → {segment.to.name} · {segment.stops.length - 1} 個站</p></div>)}{plan.transfers > 0 && <p className="flex items-center gap-1 text-xs font-semibold text-primary"><ArrowRight size={12} />在 {plan.segments[0].to.name}：{plan.segments[0].route} 號車轉乘 {plan.segments[1].route} 號車</p>}</div>
-          <div className="mt-4 border-t pt-3"><p className="flex items-center gap-2 font-semibold"><Wallet size={16} className="text-primary" />對應車資</p>{fare.data ? <div className="mt-2 grid grid-cols-2 gap-1.5 text-xs sm:grid-cols-3">{([["八達通成人", fare.data.adult], ["單程票成人", fare.data.single], ["八達通學生", fare.data.student], ["八達通小童", fare.data.child], ["長者優惠", fare.data.elder]] as const).map(([label, value]) => <div key={label} className="flex justify-between rounded-lg bg-muted/60 px-2.5 py-1.5"><span className="text-muted-foreground">{label}</span><b>${value.toFixed(1)}</b></div>)}</div> : <p className="mt-1 text-xs text-muted-foreground">轉乘路線或暫未有對應車資資料，請以現場收費為準</p>}</div>
+<p className="mt-1 text-xs text-muted-foreground">{plan.stops.length - 1} 個站 · {plan.transfers ? `轉乘 ${plan.transfers} 次` : `直達 ${plan.segments[0]!.route} 號車`}</p>
+  <div className="mt-3 space-y-2">{plan.segments.map((segment, segmentIndex) => <div key={`${segment.route}-${segmentIndex}`} className="rounded-xl bg-muted/50 p-2.5"><p className="text-xs font-semibold">乘搭 <span className="text-primary">{segment.route} 號車</span>（往 {segment.dir}）</p><p className="mt-1 text-xs text-muted-foreground">{segment.from.name} → {segment.to.name} · {segment.stops.length - 1} 個站</p></div>)}{plan.transfers > 0 && <p className="flex items-center gap-1 text-xs font-semibold text-primary"><ArrowRight size={12} />在 {plan.segments[0]!.to.name}：{plan.segments[0]!.route} 號車轉乘 {plan.segments[1]!.route} 號車</p>}</div>
+          <div className="mt-4 border-t pt-3"><p className="flex items-center gap-2 font-semibold"><Wallet size={16} className="text-primary" />對應車資</p>{fare.data ? <div className="mt-2 grid grid-cols-2 gap-1.5 text-xs sm:grid-cols-3">{([["八達通成人", fare.data.octopusAdult], ["單程票成人", fare.data.singleAdult], ["八達通學生", fare.data.octopusStudent], ["八達通小童", fare.data.octopusChild], ["八達通長者", fare.data.octopusElderly], ["八達通傷健人士", fare.data.octopusPwd], ["八達通 JoyYou 60–64歲", fare.data.octopusJoyYouSixty], ["單程票小童", fare.data.singleChild], ["單程票長者", fare.data.singleElderly]] as const).map(([label, value]) => <div key={label} className="flex justify-between gap-2 rounded-lg bg-muted/60 px-2.5 py-1.5"><span className="text-muted-foreground">{label}</span><b>${value.toFixed(1)}</b></div>)}</div> : <p className="mt-1 text-xs text-muted-foreground">暫未有此起終點的車資資料，請以現場收費為準</p>}</div>
         </>}
       </div>
     </>}

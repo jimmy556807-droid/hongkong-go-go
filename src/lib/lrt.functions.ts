@@ -8,7 +8,19 @@ const parseCsv = (txt: string) =>
   txt.replace(/^\uFEFF/, "").trim().split(/\r?\n/).slice(1).map((l) => l.split(",").map((c) => c.replace(/^"|"$/g, "").trim()));
 
 let netCache: { at: number; data: LrtRoute[] } | null = null;
-let fareCache: Map<string, { adult: number; child: number; elder: number; student: number; single: number }> | null = null;
+export type LrtFare = {
+  octopusAdult: number;
+  octopusChild: number;
+  octopusElderly: number;
+  octopusPwd: number;
+  octopusStudent: number;
+  octopusJoyYouSixty: number;
+  singleAdult: number;
+  singleChild: number;
+  singleElderly: number;
+};
+
+let fareCache: Map<string, LrtFare> | null = null;
 
 export const getLrtNetwork = createServerFn({ method: "GET" }).handler(async () => {
   if (netCache && Date.now() - netCache.at < 6 * 3600e3) return netCache.data;
@@ -49,8 +61,21 @@ export const getLrtFare = createServerFn({ method: "GET" })
       const r = await fetch("https://opendata.mtr.com.hk/data/light_rail_fares.csv");
       if (!r.ok) return null;
       fareCache = new Map();
-      for (const c of parseCsv(await r.text()))
-        fareCache.set(`${c[0]}-${c[1]}`, { adult: +c[2]!, child: +c[3]!, elder: +c[4]!, student: +c[6]!, single: +c[8]! });
+      for (const c of parseCsv(await r.text())) {
+        const values = c.map((value) => Number(value));
+        if (values.length < 11 || !Number.isFinite(values[0]) || !Number.isFinite(values[1])) continue;
+        fareCache.set(`${c[0]}-${c[1]}`, {
+          octopusAdult: values[2] ?? 0,
+          octopusChild: values[3] ?? 0,
+          octopusElderly: values[4] ?? 0,
+          octopusPwd: values[5] ?? 0,
+          octopusStudent: values[6] ?? 0,
+          octopusJoyYouSixty: values[7] ?? 0,
+          singleAdult: values[8] ?? 0,
+          singleChild: values[9] ?? 0,
+          singleElderly: values[10] ?? 0,
+        });
+      }
     }
-    return fareCache.get(`${data.from}-${data.to}`) ?? fareCache.get(`${data.to}-${data.from}`) ?? null;
+    return fareCache.get(`${data.from}-${data.to}`) ?? null;
   });
