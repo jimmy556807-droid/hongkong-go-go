@@ -8,6 +8,7 @@ import {
   Ship,
   CloudSun,
   TriangleAlert,
+  Landmark,
   LocateFixed,
   Loader2,
 } from "lucide-react";
@@ -102,6 +103,7 @@ const items = [
   { to: "/ferry", icon: Ship, label: "渡輪" },
   { to: "/weather", icon: CloudSun, label: "天氣" },
   { to: "/news", icon: TriangleAlert, label: "交通消息" },
+  { to: "/boundary", icon: Landmark, label: "口岸資訊" },
 ] as const;
 
 export function BottomNav() {
@@ -109,7 +111,7 @@ export function BottomNav() {
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-50 border-t bg-card/95 backdrop-blur">
-      <ul className="mx-auto grid max-w-md grid-cols-6">
+      <ul className="mx-auto grid max-w-md grid-cols-7">
         {items.map(({ to, icon: Icon, label }) => (
           <li key={to}>
             <Link
