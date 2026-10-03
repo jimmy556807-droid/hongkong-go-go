@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowRight, ArrowUpDown, Check, ChevronDown, Clock, MapPin, TramFront, Wallet } from "lucide-react";
+import { ArrowRight, ArrowUpDown, Check, ChevronDown, Clock, TramFront, Wallet } from "lucide-react";
 import { getLrtNetwork, getLrtSchedule, getLrtFare, type LrtRoute, type LrtStop } from "@/lib/lrt.functions";
 
 const MIN_PER_STOP = 1.8;
@@ -137,11 +137,10 @@ export function LrtPanel() {
   const netFn = useServerFn(getLrtNetwork);
   const schedFn = useServerFn(getLrtSchedule);
   const fareFn = useServerFn(getLrtFare);
-  const [tab, setTab] = useState<"route" | "trains" | "station">("trains");
+  const [tab, setTab] = useState<"route" | "trains">("trains");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [sta, setSta] = useState("");
-  const [stationsExpanded, setStationsExpanded] = useState(false);
   const net = useQuery({ queryKey: ["lrt-net"], queryFn: () => netFn(), staleTime: 3600e3 });
   const routes = net.data ?? [];
   const allStations = useMemo<StopOption[]>(() => {
@@ -169,14 +168,13 @@ export function LrtPanel() {
   const plan = useMemo(() => buildRoute(routes, fromId, toId), [routes, fromId, toId]);
   const fare = useQuery({ queryKey: ["lrt-fare", fromId, toId], queryFn: () => fareFn({ data: { from: fromId, to: toId } }), enabled: Boolean(plan) });
   const sched = useQuery({ queryKey: ["lrt-sched", staId], queryFn: () => schedFn({ data: { id: staId } }), enabled: Boolean(staId), refetchInterval: 20000 });
-  const staInfo = allStations.find((station) => station.id === staId);
 
   if (net.isLoading) return <p className="px-5 py-6 text-sm text-muted-foreground">載入輕鐵路線中…</p>;
   if (net.isError || !routes.length) return <p className="px-5 py-6 text-sm text-destructive">未能載入輕鐵資料</p>;
 
   return <div>
-    <div className="mx-5 mt-3 grid grid-cols-3 rounded-2xl bg-muted p-1" role="tablist" aria-label="輕鐵功能分類">
-      {([["trains", "下班列車"], ["route", "路線"], ["station", "車站詳情"]] as const).map(([value, label]) => (
+    <div className="mx-5 mt-3 grid grid-cols-2 rounded-2xl bg-muted p-1" role="tablist" aria-label="輕鐵功能分類">
+      {([["trains", "下班列車"], ["route", "路線"]] as const).map(([value, label]) => (
         <button key={value} role="tab" aria-selected={tab === value} onClick={() => setTab(value)} className={`rounded-xl px-2 py-2.5 text-sm font-semibold ${tab === value ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}>{label}</button>
       ))}
     </div>
@@ -204,7 +202,6 @@ export function LrtPanel() {
       </div>
     </>}
 
-    {tab === "station" && <div className="mx-5 mt-3 rounded-2xl border bg-card p-4"><StationPicker label="車站" value={staId} stations={allStations} onChange={setSta} />{staInfo && <><p className="mt-4 flex items-center gap-2 text-lg font-bold"><TramFront size={18} style={{ color: LRT_COLOR }} />{staInfo.name}</p><p className="mt-1 text-xs text-muted-foreground">車站編號 {staId} · 途經 {staInfo.routes.join("、")} 號線</p><a className="mt-3 inline-flex items-center gap-1 text-sm text-primary" target="_blank" rel="noreferrer" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent("輕鐵 " + staInfo.name + "站")}`}><MapPin size={14} />在地圖查看</a><button type="button" aria-expanded={stationsExpanded} onClick={() => setStationsExpanded((expanded) => !expanded)} className="mt-4 flex w-full justify-between border-t pt-3 text-left text-sm font-semibold">站點資訊<span>{stationsExpanded ? "−" : "+"}</span></button>{stationsExpanded && <p className="mt-2 text-sm text-muted-foreground">可在「路線」頁選擇此站作為起點或終點。</p>}</>}</div>}
-    {tab !== "route" && tab !== "station" && <div className="mx-5 mt-3 space-y-3">{sched.data?.map((platform) => <div key={platform.platform} className="rounded-2xl border bg-card p-4"><p className="mb-2 text-sm font-semibold">{platform.platform} 號月台</p>{platform.trains.length ? platform.trains.map((train, index) => <div key={index} className="flex items-center justify-between border-t py-2 text-sm first:border-0"><span><b className="mr-2 rounded-md px-2 py-0.5 text-xs text-white" style={{ background: LRT_COLOR }}>{train.route}</b><span className="text-muted-foreground">往</span> <b>{train.dest}</b><span className="ml-1 text-xs text-muted-foreground">（終點站）</span></span><b className="text-primary">{train.time}</b></div>) : <p className="text-xs text-muted-foreground">暫無列車</p>}</div>)}{sched.isLoading && <p className="text-sm text-muted-foreground">載入班次中…</p>}{!sched.isLoading && !sched.data?.length && <p className="text-sm text-muted-foreground">暫無班次</p>}</div>}
+    {tab === "trains" && <div className="mx-5 mt-3 space-y-3"><div className="rounded-2xl border bg-card p-4"><StationPicker label="車站" value={staId} stations={allStations} onChange={setSta} /><p className="mt-2 text-xs text-muted-foreground">選擇車站後查看該站各月台的下班列車。</p></div>{sched.data?.map((platform) => <div key={platform.platform} className="rounded-2xl border bg-card p-4"><p className="mb-2 text-sm font-semibold">{platform.platform} 號月台</p>{platform.trains.length ? platform.trains.map((train, index) => <div key={index} className="flex items-center justify-between border-t py-2 text-sm first:border-0"><span><b className="mr-2 rounded-md px-2 py-0.5 text-xs text-white" style={{ background: LRT_COLOR }}>{train.route}</b><span className="text-muted-foreground">往</span> <b>{train.dest}</b><span className="ml-1 text-xs text-muted-foreground">（終點站）</span></span><b className="text-primary">{train.time}</b></div>) : <p className="text-xs text-muted-foreground">暫無列車</p>}</div>)}{sched.isLoading && <p className="text-sm text-muted-foreground">載入班次中…</p>}{!sched.isLoading && !sched.data?.length && <p className="text-sm text-muted-foreground">暫無班次</p>}</div>}
   </div>;
 }
