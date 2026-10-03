@@ -193,10 +193,21 @@ export const getNearbyStops = createServerFn({ method: "GET" })
     return out.filter((s) => s.dist <= 800).sort((a, b) => a.dist - b.dist).slice(0, 12);
   });
 
+// hkbus.app 車資表：用嚟建「城巴站 → 經過路線」對照（城巴冇按站查路線嘅接口）
+let fareListCache: { at: number; data: any } | null = null;
+async function getFareList() {
+  if (fareListCache && Date.now() - fareListCache.at < 6 * 3600e3) return fareListCache.data;
+  const r = await fetch("https://data.hkbus.app/routeFareList.min.json");
+  if (!r.ok) throw new Error("無法取得巴士路線對照資料");
+  const data = await r.json();
+  fareListCache = { at: Date.now(), data };
+  return data;
+}
+
 export const getNearbyRoutes = createServerFn({ method: "GET" })
   .inputValidator((d) => z.object({ lat: z.number(), lng: z.number() }).parse(d))
   .handler(async ({ data }) => {
-    const [k, c] = await Promise.all([j(`${KMB}/stop`).catch(() => null), j(`${CTB}/stop`).catch(() => null)]);
+    const [k, fl] = await Promise.all([j(`${KMB}/stop`).catch(() => null), getFareList().catch(() => null)]);
     type NS = { id: string; name: string; dist: number; co: "KMB" | "CTB" };
     const stops: NS[] = [];
     for (const s of k?.data ?? []) {
@@ -205,36 +216,77 @@ export const getNearbyRoutes = createServerFn({ method: "GET" })
       const dist = distM(data.lat, data.lng, lat, lng);
       if (dist <= 800) stops.push({ id: String(s.stop), name: String(s.name_tc), dist, co: "KMB" });
     }
-    for (const s of c?.data ?? []) {
-      const lat = Number(s.lat), lng = Number(s.long);
-      if (!lat || !lng) continue;
-      const dist = distM(data.lat, data.lng, lat, lng);
-      if (dist <= 800) stops.push({ id: String(s.stop), name: String(s.name_tc), dist, co: "CTB" });
+    // 城巴冇全站列表接口，用車資表嘅 stopList + stopMap 搵附近城巴站
+    if (fl) {
+      const stopList = fl.stopList as Record<string, any>;
+      const stopMap = fl.stopMap as Record<string, any>;
+      for (const [sid, info] of Object.entries(stopList)) {
+        const lat = Number(info?.location?.lat), lng = Number(info?.location?.lng);
+        if (!lat || !lng) continue;
+        const dist = distM(data.lat, data.lng, lat, lng);
+        if (dist > 800) continue;
+        const ctbId = (stopMap[sid] ?? []).find((x: any) => x[0] === "ctb")?.[1];
+        if (!ctbId) continue;
+        stops.push({ id: String(ctbId), name: String(info?.name?.zh ?? "").replace(/\s*\([A-Z]+\d+\)\s*$/, ""), dist, co: "CTB" });
+      }
     }
     stops.sort((a, b) => a.dist - b.dist);
     const near = stops.slice(0, 12);
-    const etas = await Promise.all(near.map((s) => s.co === "KMB" ? j(`${KMB}/stop-eta/${s.id}`).catch(() => null) : j(`${CTB}/eta/CTB/${s.id}`).catch(() => null)));
     const m = new Map<string, { route: string; dir: "outbound" | "inbound"; dest: string; stopName: string; dist: number; etas: string[]; co: "KMB" | "CTB" }>();
-    etas.forEach((x, i) => {
-      const stop = near[i]!;
-      for (const e of x?.data ?? []) {
-        const key = `${stop.co}:${String(e.route)}:${String(e.dir)}`;
-        const cur = m.get(key);
-        if (!cur || stop.dist < cur.dist) {
-          m.set(key, {
-            route: String(e.route),
-            dir: e.dir === "I" ? "inbound" : "outbound",
-            dest: String(e.dest_tc ?? ""),
-            stopName: stop.name,
-            dist: stop.dist,
-            etas: cur?.etas ?? [],
-            co: stop.co,
-          });
-        }
-        const v = m.get(key)!;
-        if (e.eta && stop.id === near[i]!.id && v.stopName === stop.name && v.etas.length < 3) v.etas.push(String(e.eta));
+    const addEta = (stop: NS, e: any) => {
+      const key = `${stop.co}:${String(e.route)}:${String(e.dir)}`;
+      const cur = m.get(key);
+      if (!cur || stop.dist < cur.dist) {
+        m.set(key, {
+          route: String(e.route),
+          dir: e.dir === "I" ? "inbound" : "outbound",
+          dest: String(e.dest_tc ?? ""),
+          stopName: stop.name,
+          dist: stop.dist,
+          etas: cur?.etas ?? [],
+          co: stop.co,
+        });
       }
+      const v = m.get(key)!;
+      if (e.eta && v.stopName === stop.name && v.etas.length < 3) v.etas.push(String(e.eta));
+    };
+    // 九巴：一個接口拎晒全站路線 ETA
+    const kmbEtas = await Promise.all(near.map((s) => s.co === "KMB" ? j(`${KMB}/stop-eta/${s.id}`).catch(() => null) : null));
+    kmbEtas.forEach((x, i) => {
+      const stop = near[i]!;
+      for (const e of x?.data ?? []) addEta(stop, e);
     });
+    // 城巴：由車資表建「站 → 路線」對照，再逐路線查 ETA
+    const ctbStopRoutes = new Map<string, Array<{ route: string; dir: "outbound" | "inbound"; dest: string }>>();
+    if (fl) {
+      for (const v of Object.values(fl.routeList as Record<string, any>)) {
+        if (!v.co?.includes("ctb") || !Array.isArray(v.stops?.ctb)) continue;
+        const dir = v.bound?.ctb === "I" ? "inbound" : "outbound";
+        const dest = String(v.dest?.zh ?? "");
+        for (const sid of v.stops.ctb as string[]) {
+          const arr = ctbStopRoutes.get(sid) ?? [];
+          if (arr.length < 8 && !arr.some((x) => x.route === String(v.route) && x.dir === dir)) arr.push({ route: String(v.route), dir, dest });
+          ctbStopRoutes.set(sid, arr);
+        }
+      }
+    }
+    const ctbJobs: Promise<void>[] = [];
+    for (const stop of near.filter((s) => s.co === "CTB")) {
+      for (const r of (ctbStopRoutes.get(stop.id) ?? []).slice(0, 6)) {
+        ctbJobs.push((async () => {
+          const x = await j(`${CTB}/eta/CTB/${stop.id}/${r.route}`).catch(() => null);
+          const list = x?.data ?? [];
+          if (!list.length) {
+            // 冇班次都照顯示路線
+            const key = `CTB:${r.route}:${r.dir === "inbound" ? "I" : "O"}`;
+            if (!m.has(key)) m.set(key, { route: r.route, dir: r.dir, dest: r.dest, stopName: stop.name, dist: stop.dist, etas: [], co: "CTB" });
+            return;
+          }
+          for (const e of list) addEta(stop, e);
+        })());
+      }
+    }
+    await Promise.all(ctbJobs);
     return [...m.values()].sort((a, b) => a.route.localeCompare(b.route, "en", { numeric: true }));
   });
 
@@ -270,34 +322,48 @@ let gmbNearbyCache: { at: number; data: Array<{ routeId: string; route: GmbRoute
 export const getNearbyGmbRoutes = createServerFn({ method: "GET" })
   .inputValidator((d) => z.object({ lat: z.number(), lng: z.number() }).parse(d))
   .handler(async ({ data }) => {
-    const now = Date.now();
-    if (!gmbNearbyCache || now - gmbNearbyCache.at > 3600000) {
-      const routes = await getGmbRoutes();
-      const entries = await Promise.all(routes.slice(0, 160).map(async (route) => {
-        const res = await fetch(`${GMB_API}/route-stop/${route.id}/1`).catch(() => null);
-        const payload: any = res?.ok ? await res.json().catch(() => null) : null;
-        const raw = payload?.data?.route_stop ?? payload?.data?.stops ?? payload?.data ?? [];
-        const stops = await Promise.all((Array.isArray(raw) ? raw : []).map(async (s: any) => {
-          const id = String(s.stop_id ?? s.id ?? "");
-          const detailRes = await fetch(`${GMB_API}/stop/${id}`).catch(() => null);
-          const detail: any = detailRes?.ok ? await detailRes.json().catch(() => null) : null;
-          const item = detail?.data ?? detail;
-          return { id, name: String(s.stop_name_tc ?? s.name_tc ?? s.name ?? item?.name_tc ?? ""), lat: Number(s.lat ?? item?.lat), lng: Number(s.lng ?? s.long ?? item?.lng) };
-        }));
-        return { routeId: route.id, route, stops: stops.filter((s) => Number.isFinite(s.lat) && Number.isFinite(s.lng) && s.lat !== 0 && s.lng !== 0) };
-      }));
-      gmbNearbyCache = { at: now, data: entries };
+    // 用車資表嘅 routeList（gtfsId = 小巴路線 ID、stops.gmb = 車站編號）+ stopList 座標
+    const fl = await getFareList().catch(() => null);
+    if (!fl) return [];
+    const stopList = fl.stopList as Record<string, any>;
+    const stopMap = fl.stopMap as Record<string, any>;
+    // 車站編號 → 座標（stopMap 將實體站連去 gmb 站 ID）
+    const gmbStopCoord = new Map<string, { lat: number; lng: number; name: string }>();
+    for (const [sid, info] of Object.entries(stopList)) {
+      const lat = Number(info?.location?.lat), lng = Number(info?.location?.lng);
+      if (!lat || !lng) continue;
+      for (const x of stopMap[sid] ?? []) {
+        if (x[0] === "gmb") gmbStopCoord.set(String(x[1]), { lat, lng, name: String(info?.name?.zh ?? "").replace(/\s*\([A-Z]+\d+\)\s*$/, "") });
+      }
     }
-    const nearby: NearbyGmb[] = [];
-    for (const entry of gmbNearbyCache.data) {
-      const closest = entry.stops.map((s) => ({ ...s, dist: distM(data.lat, data.lng, s.lat, s.lng) })).sort((a, b) => a.dist - b.dist)[0];
-      if (!closest || closest.dist > 800) continue;
-      const etaRes = await fetch(`${GMB_API}/eta/stop/${closest.id}`).catch(() => null);
+    // 每條路線（按 gtfsId 去重）搵最近車站
+    const seen = new Set<string>();
+    const candidates: Array<{ routeId: string; route: string; dest: string; stopId: string; stopName: string; dist: number }> = [];
+    for (const v of Object.values(fl.routeList as Record<string, any>)) {
+      if (!v.co?.includes("gmb") || !Array.isArray(v.stops?.gmb)) continue;
+      const routeId = String(v.gtfsId ?? "");
+      if (!routeId || seen.has(routeId)) continue;
+      seen.add(routeId);
+      let best: { stopId: string; stopName: string; dist: number } | null = null;
+      for (const sid of v.stops.gmb as string[]) {
+        const c = gmbStopCoord.get(String(sid));
+        if (!c) continue;
+        const dist = distM(data.lat, data.lng, c.lat, c.lng);
+        if (dist <= 800 && (!best || dist < best.dist)) best = { stopId: String(sid), stopName: c.name, dist };
+      }
+      if (best) candidates.push({ routeId, route: String(v.route ?? ""), dest: String(v.dest?.zh ?? ""), ...best });
+    }
+    candidates.sort((a, b) => a.dist - b.dist);
+    const top = candidates.slice(0, 12);
+    const nearby: NearbyGmb[] = await Promise.all(top.map(async (c) => {
+      const etaRes = await fetch(`${GMB_API}/eta/stop/${c.stopId}`).catch(() => null);
       const payload: any = etaRes?.ok ? await etaRes.json().catch(() => null) : null;
-      const etas = (payload?.data?.eta ?? payload?.data?.etas ?? []).slice(0, 3).map((e: any) => e.diff ?? e.timestamp ?? e.eta).filter(Boolean);
-      nearby.push({ route: entry.route.name, dest: entry.route.end, stopName: closest.name, dist: closest.dist, etas, co: "GMB", routeId: entry.routeId });
-    }
-    return nearby.sort((a, b) => a.dist - b.dist).slice(0, 12);
+      const entries = Array.isArray(payload?.data) ? payload.data : [];
+      const mine = entries.filter((e: any) => String(e.route_id) === c.routeId);
+      const etas = mine.flatMap((e: any) => Array.isArray(e?.eta) ? e.eta : []).slice(0, 3).map((e: any) => e.diff ?? e.timestamp).filter((x: any) => x != null && x !== "");
+      return { route: c.route, dest: c.dest, stopName: c.stopName, dist: c.dist, etas, co: "GMB" as const, routeId: c.routeId };
+    }));
+    return nearby;
   });
 
 export const getGmbEta = createServerFn({ method: "GET" })
@@ -306,7 +372,7 @@ export const getGmbEta = createServerFn({ method: "GET" })
     const r = await fetch(`${GMB_API}/route-stop/${data.routeId}/${data.routeSeq}`);
     if (!r.ok) throw new Error("無法取得專綫小巴車站資料");
     const payload: any = await r.json();
-    const stops = payload?.data?.route_stop ?? payload?.data?.stops ?? payload?.data ?? [];
+    const stops = payload?.data?.route_stops ?? payload?.data?.route_stop ?? payload?.data?.stops ?? payload?.data ?? [];
     return Promise.all((Array.isArray(stops) ? stops : []).map(async (s: any) => {
       const stopSeq = Number(s.stop_seq ?? s.stop_sequence ?? s.seq);
       const etaRes = await fetch(`${GMB_API}/eta/route-stop/${data.routeId}/${data.routeSeq}/${stopSeq}`).catch(() => null);
