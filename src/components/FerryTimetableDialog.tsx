@@ -15,7 +15,7 @@ export function FerryTimetableDialog({ link, title }: { link: string; title: str
           <CalendarClock size={14} />運輸署班次及詳情
         </button>
       </DialogTrigger>
-      <DialogContent className="flex max-h-[85vh] flex-col gap-3 sm:max-w-lg">
+      <DialogContent className="flex max-h-[85vh] flex-col gap-3 overflow-hidden sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>班次時間表 · 資料來源：運輸署</DialogDescription>
@@ -47,7 +47,7 @@ function TimetableBody({ link }: { link: string }) {
 
   const table = data.tables[Math.min(active, data.tables.length - 1)];
   return (
-    <div className="-mx-1 flex min-h-0 flex-col gap-3 overflow-y-auto px-1">
+    <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-1">
       {data.tables.length > 1 && (
         <div role="tablist" aria-label="服務日子" className="flex shrink-0 gap-2 overflow-x-auto py-0.5">
           {data.tables.map((t, i) => (
@@ -79,7 +79,7 @@ function TimetableBody({ link }: { link: string }) {
 function TimetableTable({ table }: { table: FerryTimetableTable }) {
   const cols = Math.max(table.headers.length, ...table.rows.map((r) => r.length));
   return (
-    <div className="overflow-hidden rounded-xl border">
+    <div className="overflow-x-auto rounded-xl border">
       {table.title && <p className="border-b bg-primary/10 px-3 py-2 text-sm font-semibold text-primary">{table.title}</p>}
       <table className="w-full text-sm">
         {table.headers.length > 0 && (
