@@ -207,7 +207,7 @@ async function getFareList() {
 export const getNearbyRoutes = createServerFn({ method: "GET" })
   .inputValidator((d) => z.object({ lat: z.number(), lng: z.number() }).parse(d))
   .handler(async ({ data }) => {
-    const [k, c, fl] = await Promise.all([j(`${KMB}/stop`).catch(() => null), j(`${CTB}/stop`).catch(() => null), getFareList().catch(() => null)]);
+    const [k, fl] = await Promise.all([j(`${KMB}/stop`).catch(() => null), getFareList().catch(() => null)]);
     type NS = { id: string; name: string; dist: number; co: "KMB" | "CTB" };
     const stops: NS[] = [];
     for (const s of k?.data ?? []) {
@@ -216,11 +216,19 @@ export const getNearbyRoutes = createServerFn({ method: "GET" })
       const dist = distM(data.lat, data.lng, lat, lng);
       if (dist <= 800) stops.push({ id: String(s.stop), name: String(s.name_tc), dist, co: "KMB" });
     }
-    for (const s of c?.data ?? []) {
-      const lat = Number(s.lat), lng = Number(s.long);
-      if (!lat || !lng) continue;
-      const dist = distM(data.lat, data.lng, lat, lng);
-      if (dist <= 800) stops.push({ id: String(s.stop), name: String(s.name_tc), dist, co: "CTB" });
+    // 城巴冇全站列表接口，用車資表嘅 stopList + stopMap 搵附近城巴站
+    if (fl) {
+      const stopList = fl.stopList as Record<string, any>;
+      const stopMap = fl.stopMap as Record<string, any>;
+      for (const [sid, info] of Object.entries(stopList)) {
+        const lat = Number(info?.location?.lat), lng = Number(info?.location?.lng);
+        if (!lat || !lng) continue;
+        const dist = distM(data.lat, data.lng, lat, lng);
+        if (dist > 800) continue;
+        const ctbId = (stopMap[sid] ?? []).find((x: any) => x[0] === "ctb")?.[1];
+        if (!ctbId) continue;
+        stops.push({ id: String(ctbId), name: String(info?.name?.zh ?? "").replace(/\s*\([A-Z]+\d+\)\s*$/, ""), dist, co: "CTB" });
+      }
     }
     stops.sort((a, b) => a.dist - b.dist);
     const near = stops.slice(0, 12);
