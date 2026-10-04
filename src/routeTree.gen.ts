@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as BorderRouteImport } from './routes/border'
 import { Route as BusRouteImport } from './routes/bus'
 import { Route as FerryRouteImport } from './routes/ferry'
 import { Route as MtrRouteImport } from './routes/mtr'
@@ -19,6 +20,11 @@ import { Route as WeatherRouteImport } from './routes/weather'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BorderRoute = BorderRouteImport.update({
+  id: '/border',
+  path: '/border',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BusRoute = BusRouteImport.update({
@@ -49,6 +55,7 @@ const WeatherRoute = WeatherRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/border': typeof BorderRoute
   '/bus': typeof BusRoute
   '/ferry': typeof FerryRoute
   '/mtr': typeof MtrRoute
@@ -57,6 +64,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/border': typeof BorderRoute
   '/bus': typeof BusRoute
   '/ferry': typeof FerryRoute
   '/mtr': typeof MtrRoute
@@ -66,6 +74,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/border': typeof BorderRoute
   '/bus': typeof BusRoute
   '/ferry': typeof FerryRoute
   '/mtr': typeof MtrRoute
@@ -74,14 +83,23 @@ export interface FileRoutesById {
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/bus' | '/ferry' | '/mtr' | '/news' | '/weather'
+  fullPaths: '/' | '/border' | '/bus' | '/ferry' | '/mtr' | '/news' | '/weather'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/bus' | '/ferry' | '/mtr' | '/news' | '/weather'
-  id: '__root__' | '/' | '/bus' | '/ferry' | '/mtr' | '/news' | '/weather'
+  to: '/' | '/border' | '/bus' | '/ferry' | '/mtr' | '/news' | '/weather'
+  id:
+    | '__root__'
+    | '/'
+    | '/border'
+    | '/bus'
+    | '/ferry'
+    | '/mtr'
+    | '/news'
+    | '/weather'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  BorderRoute: typeof BorderRoute
   BusRoute: typeof BusRoute
   FerryRoute: typeof FerryRoute
   MtrRoute: typeof MtrRoute
@@ -96,6 +114,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/border': {
+      id: '/border'
+      path: '/border'
+      fullPath: '/border'
+      preLoaderRoute: typeof BorderRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/bus': {
@@ -138,6 +163,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  BorderRoute: BorderRoute,
   BusRoute: BusRoute,
   FerryRoute: FerryRoute,
   MtrRoute: MtrRoute,
