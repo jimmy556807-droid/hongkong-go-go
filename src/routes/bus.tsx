@@ -15,6 +15,31 @@ import {
 import { getBusFare } from "@/lib/fare.functions";
 import { Wallet } from "lucide-react";
 
+function BusStopFare({
+  route,
+  co,
+  dir,
+  idx,
+}: {
+  route: string;
+  co: "KMB" | "CTB";
+  dir: "outbound" | "inbound";
+  idx: number;
+}) {
+  const fn = useServerFn(getBusFare);
+  const q = useQuery({
+    queryKey: ["busFare", route, co, dir],
+    queryFn: () => fn({ data: { route, co, dir } }),
+    staleTime: 3600000,
+    enabled: !!route,
+  });
+  const fare = q.data?.fares?.[Math.min(idx, (q.data?.fares.length ?? 1) - 1)];
+
+  if (q.isLoading) return <span className="text-[11px] text-muted-foreground">車資…</span>;
+  if (fare == null) return null;
+  return <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">${fare.toFixed(1)}</span>;
+}
+
 function BusFareBox({
   route,
   co,
@@ -624,12 +649,17 @@ function BusPage() {
               <span
                 className={`absolute -left-[7px] top-1.5 h-3 w-3 rounded-full border-2 border-primary ${inTrip ? "bg-primary" : "bg-background"}`}
               />
-              <button
-                onClick={() => setStop({ id: s.id, name: s.name, co })}
-                className="text-left font-medium underline-offset-2 hover:underline"
-              >
-                {s.name}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setStop({ id: s.id, name: s.name, co })}
+                  className="text-left font-medium underline-offset-2 hover:underline"
+                >
+                  {s.name}
+                </button>
+                {route && (
+                  <BusStopFare route={route} co={co} dir={dir} idx={stops.indexOf(s)} />
+                )}
+              </div>
               <div className="flex items-center gap-3 text-sm">
                 {s.etas.length ? (
                   s.etas.map((e, i) => <Countdown key={i} at={e} now={now} />)
