@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { CalendarClock } from "lucide-react";
+import { CalendarClock, Clock3 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { getFerryTimetable, type FerryTimetableTable } from "@/lib/ferry.functions";
+import { getFerryTimetable, type FerryTimetable, type FerryTimetableTable } from "@/lib/ferry.functions";
 
 export function FerryTimetableDialog({ link, title }: { link: string; title: string }) {
   const [open, setOpen] = useState(false);
@@ -24,6 +24,35 @@ export function FerryTimetableDialog({ link, title }: { link: string; title: str
       </DialogContent>
     </Dialog>
   );
+}
+
+function getNextDeparture(timetable: FerryTimetable): string | null {
+  const now = new Date();
+  const minutesNow = now.getHours() * 60 + now.getMinutes();
+  const departures = timetable.tables
+    .flatMap((table) => table.rows.flatMap((row) => row.join(" ").match(/(?:^|\\s)(\\d{1,2})[:：](\\d{2})(?=\\s|$)/g) ?? []))
+    .map((value) => value.match(/(\\d{1,2})[:：](\\d{2})/))
+    .filter((match): match is RegExpMatchArray => Boolean(match))
+    .map((match) => Number(match[1]) * 60 + Number(match[2]))
+    .filter((minutes) => minutes >= minutesNow)
+    .sort((a, b) => a - b);
+  const next = departures[0];
+  return next === undefined ? null : `${String(Math.floor(next / 60)).padStart(2, "0")}:${String(next % 60).padStart(2, "0")}`;
+}
+
+export function FerryEta({ link, journeyTime }: { link: string; journeyTime: number }) {
+  const { data, isPending, isError } = useQuery({
+    queryKey: ["ferry-eta", link],
+    queryFn: () => getFerryTimetable({ data: { link } }),
+    staleTime: 60_000,
+  });
+  if (isPending) return <p className="mt-1 text-xs text-muted-foreground">正在讀取官方班次…</p>;
+  if (isError || !data) return <p className="mt-1 text-xs text-muted-foreground">暫時未能取得官方班次</p>;
+  const departure = getNextDeparture(data);
+  if (!departure) return <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground"><Clock3 size={13} aria-hidden="true" />目前無班次</p>;
+  const [hours = 0, minutes = 0] = departure.split(":").map(Number);
+  const arrival = (hours * 60 + minutes + Math.max(journeyTime, 0)) % (24 * 60);
+  return <p className="mt-1 flex items-center gap-1 text-xs font-medium text-primary"><Clock3 size={13} aria-hidden="true" />官方班次 ETA：{String(Math.floor(arrival / 60)).padStart(2, "0")}:{String(arrival % 60).padStart(2, "0")}（{departure} 開出）</p>;
 }
 
 function TimetableBody({ link }: { link: string }) {

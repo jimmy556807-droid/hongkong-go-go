@@ -3,7 +3,7 @@ import { useState } from "react";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { Ship, Search, Clock, MapPin, Wallet } from "lucide-react";
 import { PageHeader } from "@/components/BottomNav";
-import { FerryTimetableDialog } from "@/components/FerryTimetableDialog";
+import { FerryEta, FerryTimetableDialog } from "@/components/FerryTimetableDialog";
 import { getFerryRoutes } from "@/lib/ferry.functions";
 
 const ferryQuery = queryOptions({ queryKey: ["ferry-routes"], queryFn: () => getFerryRoutes(), staleTime: 3600_000 });
@@ -75,6 +75,7 @@ function FerryPage() {
                   <Clock size={13} aria-hidden="true" />
                   {r.journeyTime > 0 ? `官方航程約 ${r.journeyTime} 分鐘` : "暫無航程資料"}
                 </p>
+                {r.link && <FerryEta link={r.link} journeyTime={r.journeyTime} />}
               </div>
               <span className="text-right text-sm font-semibold text-primary">{r.fare ? `$${r.fare.toFixed(1)}` : "—"}</span>
             </button>
