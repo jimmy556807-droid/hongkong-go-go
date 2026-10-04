@@ -39,17 +39,7 @@ const GROUPS: Array<{ title: string; items: Cp[] }> = [
       { code: "MKT", name: "文錦渡", stat: "文錦渡" },
       { code: "STK", name: "沙頭角", stat: "沙頭角" },
     ],
-  },
-  {
-    title: "海空口岸",
-    items: [
-      { name: "機場", stat: "機場" },
-      { name: "港澳客輪碼頭", stat: "港澳客輪碼頭" },
-      { name: "中國客運碼頭", stat: "中國客運碼頭" },
-      { name: "屯門客運碼頭", stat: "屯門客運碼頭" },
-      { name: "啟德郵輪碼頭", stat: "啟德郵輪碼頭" },
-    ],
-  },
+  }
 ];
 
 const STATUS: Record<number, { t: string; c: string }> = {
