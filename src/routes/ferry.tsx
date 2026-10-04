@@ -71,10 +71,6 @@ function FerryPage() {
                 <p className="text-xs text-muted-foreground">
                   {r.stops.length} 個碼頭{r.journeyTime ? ` · 航程約 ${r.journeyTime} 分鐘` : ""}{r.bidirectional ? " · 雙向" : ""}
                 </p>
-                <p className="mt-1 flex items-center gap-1 text-xs font-medium text-primary">
-                  <Clock size={13} aria-hidden="true" />
-                  {r.journeyTime > 0 ? `官方航程約 ${r.journeyTime} 分鐘` : "暫無航程資料"}
-                </p>
               </div>
               <span className="text-right text-sm font-semibold text-primary">{r.fare ? `$${r.fare.toFixed(1)}` : "—"}</span>
             </button>
