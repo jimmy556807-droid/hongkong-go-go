@@ -336,34 +336,37 @@ export const getNearbyGmbRoutes = createServerFn({ method: "GET" })
         if (x[0] === "gmb") gmbStopCoord.set(String(x[1]), { lat, lng, name: String(info?.name?.zh ?? "").replace(/\s*\([A-Z]+\d+\)\s*$/, "") });
       }
     }
-    // 每條路線（按 gtfsId 去重）搵最近車站
-    const seen = new Set<string>();
-    const candidates: Array<{ routeId: string; route: string; dest: string; stopId: string; stopName: string; dist: number }> = [];
+    // gtfsId → 路線號 / 目的地
+    const info = new Map<string, { route: string; dest: string }>();
     for (const v of Object.values(fl.routeList as Record<string, any>)) {
-      if (!v.co?.includes("gmb") || !Array.isArray(v.stops?.gmb)) continue;
-      const routeId = String(v.gtfsId ?? "");
-      if (!routeId || seen.has(routeId)) continue;
-      seen.add(routeId);
-      let best: { stopId: string; stopName: string; dist: number } | null = null;
-      for (const sid of v.stops.gmb as string[]) {
-        const c = gmbStopCoord.get(String(sid));
-        if (!c) continue;
-        const dist = distM(data.lat, data.lng, c.lat, c.lng);
-        if (dist <= 800 && (!best || dist < best.dist)) best = { stopId: String(sid), stopName: c.name, dist };
-      }
-      if (best) candidates.push({ routeId, route: String(v.route ?? ""), dest: String(v.dest?.zh ?? ""), ...best });
+      if (!v.co?.includes("gmb") || !v.gtfsId) continue;
+      if (!info.has(String(v.gtfsId))) info.set(String(v.gtfsId), { route: String(v.route ?? ""), dest: String(v.dest?.zh ?? "") });
     }
-    candidates.sort((a, b) => a.dist - b.dist);
-    const top = candidates.slice(0, 12);
-    const nearby: NearbyGmb[] = await Promise.all(top.map(async (c) => {
-      const etaRes = await fetch(`${GMB_API}/eta/stop/${c.stopId}`).catch(() => null);
-      const payload: any = etaRes?.ok ? await etaRes.json().catch(() => null) : null;
-      const entries = Array.isArray(payload?.data) ? payload.data : [];
-      const mine = entries.filter((e: any) => String(e.route_id) === c.routeId);
-      const etas = mine.flatMap((e: any) => Array.isArray(e?.eta) ? e.eta : []).slice(0, 3).map((e: any) => e.diff ?? e.timestamp).filter((x: any) => x != null && x !== "");
-      return { route: c.route, dest: c.dest, stopName: c.stopName, dist: c.dist, etas, co: "GMB" as const, routeId: c.routeId };
+    // 以車站為中心：搵附近小巴站，逐站拉全部路線 ETA
+    const stops = [...gmbStopCoord.entries()]
+      .map(([stopId, c]) => ({ stopId, name: c.name, dist: distM(data.lat, data.lng, c.lat, c.lng) }))
+      .filter((s) => s.dist <= 800)
+      .sort((a, b) => a.dist - b.dist)
+      .slice(0, 20);
+    const m = new Map<string, NearbyGmb>();
+    await Promise.all(stops.map(async (st) => {
+      const res = await fetch(`${GMB_API}/eta/stop/${st.stopId}`).catch(() => null);
+      const payload: any = res?.ok ? await res.json().catch(() => null) : null;
+      for (const e of Array.isArray(payload?.data) ? payload.data : []) {
+        const routeId = String(e.route_id);
+        const ri = info.get(routeId);
+        if (!ri) continue;
+        const etas = (Array.isArray(e.eta) ? e.eta : []).map((x: any) => x.diff ?? x.timestamp).filter((x: any) => x != null && x !== "").slice(0, 3);
+        const key = `${ri.route}:${ri.dest}`;
+        const cur = m.get(key);
+        const better = !cur || (cur.etas.length === 0 && etas.length > 0) || (!!cur.etas.length === !!etas.length && st.dist < cur.dist);
+        if (better) m.set(key, { route: ri.route, dest: ri.dest, stopName: st.name, dist: st.dist, etas, co: "GMB", routeId });
+      }
     }));
-    return nearby;
+    // 有班次優先，再按距離
+    return [...m.values()]
+      .sort((a, b) => (b.etas.length ? 1 : 0) - (a.etas.length ? 1 : 0) || a.dist - b.dist)
+      .slice(0, 25);
   });
 
 export const getGmbEta = createServerFn({ method: "GET" })
