@@ -21,6 +21,7 @@ export const getWeather = createServerFn({ method: "GET" }).handler(async () => 
       date: String(f.forecastDate),
       week: String(f.week),
       desc: String(f.forecastWeather),
+      icon: Number(f.forecastIcon) || null,
       min: Number(f.forecastMintemp?.value),
       max: Number(f.forecastMaxtemp?.value),
       psr: String(f.PSR ?? ""),
@@ -317,7 +318,6 @@ export const getGmbRoutes = createServerFn({ method: "GET" }).handler(async () =
 });
 
 type NearbyGmb = { route: string; dest: string; stopName: string; dist: number; etas: Array<string | number>; co: "GMB"; routeId: string };
-let gmbNearbyCache: { at: number; data: Array<{ routeId: string; route: GmbRoute; stops: Array<{ id: string; name: string; lat: number; lng: number }> }> } | null = null;
 
 export const getNearbyGmbRoutes = createServerFn({ method: "GET" })
   .inputValidator((d) => z.object({ lat: z.number(), lng: z.number() }).parse(d))
