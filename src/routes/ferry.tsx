@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { Ship, Search, Clock, MapPin, Wallet } from "lucide-react";
-import { PageHeader, useNow } from "@/components/BottomNav";
+import { PageHeader } from "@/components/BottomNav";
 import { FerryTimetableDialog } from "@/components/FerryTimetableDialog";
 import { getFerryRoutes } from "@/lib/ferry.functions";
 
@@ -32,15 +32,6 @@ const TABS = [
 
 function FerryPage() {
   const { data } = useSuspenseQuery(ferryQuery);
-  const now = useNow(30_000);
-  const formatEta = (journeyTime: number) =>
-    journeyTime > 0
-      ? new Date(now + journeyTime * 60_000).toLocaleTimeString("zh-HK", {
-          hour: "2-digit",
-          minute: "2-digit",
-          timeZone: "Asia/Hong_Kong",
-        })
-      : null;
   const [q, setQ] = useState("");
   const [tab, setTab] = useState("ALL");
   const [open, setOpen] = useState<string | null>(null);
@@ -79,10 +70,6 @@ function FerryPage() {
                 <p className="font-semibold">{r.from} {r.bidirectional ? "⇄" : "→"} {r.to}</p>
                 <p className="text-xs text-muted-foreground">
                   {r.stops.length} 個碼頭{r.journeyTime ? ` · 航程約 ${r.journeyTime} 分鐘` : ""}{r.bidirectional ? " · 雙向" : ""}
-                </p>
-                <p className="mt-1 flex items-center gap-1 text-xs font-medium text-primary">
-                  <Clock size={13} aria-hidden="true" />
-                  {formatEta(r.journeyTime) ? `預計到達 ${formatEta(r.journeyTime)}` : "暫無預計到達時間"}
                 </p>
               </div>
               <span className="text-right text-sm font-semibold text-primary">{r.fare ? `$${r.fare.toFixed(1)}` : "—"}</span>
