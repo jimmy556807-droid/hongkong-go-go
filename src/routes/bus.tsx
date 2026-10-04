@@ -15,6 +15,31 @@ import {
 import { getBusFare } from "@/lib/fare.functions";
 import { Wallet } from "lucide-react";
 
+function BusStopFare({
+  route,
+  co,
+  dir,
+  idx,
+}: {
+  route: string;
+  co: "KMB" | "CTB";
+  dir: "outbound" | "inbound";
+  idx: number;
+}) {
+  const fn = useServerFn(getBusFare);
+  const q = useQuery({
+    queryKey: ["busFare", route, co, dir],
+    queryFn: () => fn({ data: { route, co, dir } }),
+    staleTime: 3600000,
+    enabled: !!route,
+  });
+  const fare = q.data?.fares?.[Math.min(idx, (q.data?.fares.length ?? 1) - 1)];
+
+  if (q.isLoading) return <span className="text-[11px] text-muted-foreground">車資…</span>;
+  if (fare == null) return null;
+  return <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">${fare.toFixed(1)}</span>;
+}
+
 function BusFareBox({
   route,
   co,
@@ -108,11 +133,14 @@ export const Route = createFileRoute("/bus")({
 
 const MIN_PER_STOP = 2.2;
 
-function GmbPanel() {
+function GmbPanel({ searchQuery = "" }: { searchQuery?: string }) {
   const routesFn = useServerFn(getGmbRoutes);
   const etaFn = useServerFn(getGmbEta);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(searchQuery);
   const [selected, setSelected] = useState<GmbRoute | null>(null);
+  useEffect(() => {
+    setQuery(searchQuery);
+  }, [searchQuery]);
   const routes = useQuery({ queryKey: ["gmb-routes"], queryFn: routesFn, staleTime: 3600e3 });
   const eta = useQuery({
     queryKey: ["gmb-eta", selected?.id],
@@ -241,8 +269,10 @@ function BusPage() {
   const now = useNow();
   const fn = useServerFn(getBus);
   const routesFn = useServerFn(getBusRoutes);
+  const gmbRoutesFn = useServerFn(getGmbRoutes);
   const nearFn = useServerFn(getNearbyRoutes);
   const routes = useQuery({ queryKey: ["busRoutes"], queryFn: routesFn, staleTime: 86400000 });
+  const gmbRoutes = useQuery({ queryKey: ["gmb-routes"], queryFn: gmbRoutesFn, staleTime: 3600e3 });
   const gmbNearFn = useServerFn(getNearbyGmbRoutes);
   const nearby = useQuery({
     queryKey: ["nearbyRoutes", pos?.lat, pos?.lng],
@@ -266,10 +296,16 @@ function BusPage() {
   const matches = useMemo(() => {
     const t = input.trim().toUpperCase();
     if (!t) return [];
-    return (routes.data ?? [])
+    const busMatches = (routes.data ?? [])
       .filter((r) => r.route.startsWith(t) || r.dest.includes(t) || r.orig.includes(t))
-      .slice(0, 20);
-  }, [input, routes.data]);
+      .slice(0, 16)
+      .map((r) => ({ type: "bus" as const, route: r }));
+    const gmbMatches = (gmbRoutes.data ?? [])
+      .filter((r) => `${r.name} ${r.start} ${r.end}`.toUpperCase().includes(t))
+      .slice(0, 8)
+      .map((r) => ({ type: "gmb" as const, route: r }));
+    return [...busMatches, ...gmbMatches];
+  }, [input, routes.data, gmbRoutes.data]);
 
   const pick = (r: string, d: "outbound" | "inbound", c: "KMB" | "CTB") => {
     setRoute(r);
@@ -311,8 +347,9 @@ function BusPage() {
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="搜尋路線或目的地"
-              className="w-full bg-transparent py-3 outline-none"
+  placeholder="搜尋九巴、城巴、專綫小巴或目的地"
+  aria-label="搜尋九巴、城巴或專綫小巴路線"
+  className="w-full bg-transparent py-3 outline-none"
             />
           </div>
           <button
@@ -330,20 +367,37 @@ function BusPage() {
         </div>
         {matches.length > 0 && (
           <ul className="absolute inset-x-0 z-20 mt-1 max-h-80 overflow-auto rounded-xl border bg-card shadow-lg">
-            {matches.map((r) => (
-              <li key={r.co + r.route + r.dir}>
-                <button
-                  onClick={() => pick(r.route, r.dir, r.co)}
-                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-muted"
-                >
-                  <b className="w-12 text-primary">{r.route}</b>
-                  <CoTag co={r.co} />
-                  <span className="text-sm">
-                    {r.orig} → {r.dest}
-                  </span>
-                </button>
-              </li>
-            ))}
+            {matches.map((match) =>
+              match.type === "bus" ? (
+                <li key={match.route.co + match.route.route + match.route.dir}>
+                  <button
+                    onClick={() => pick(match.route.route, match.route.dir, match.route.co)}
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-muted"
+                  >
+                    <b className="w-12 text-primary">{match.route.route}</b>
+                    <CoTag co={match.route.co} />
+                    <span className="text-sm">
+                      {match.route.orig} → {match.route.dest}
+                    </span>
+                  </button>
+                </li>
+              ) : (
+                <li key={`GMB-${match.route.id}`}>
+                  <button
+                    onClick={() => setActiveCo("GMB")}
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-muted"
+                  >
+                    <b className="w-12 text-amber-700">{match.route.name}</b>
+                    <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-800">
+                      專綫小巴
+                    </span>
+                    <span className="text-sm">
+                      {match.route.start} → {match.route.end}
+                    </span>
+                  </button>
+                </li>
+              ),
+            )}
           </ul>
         )}
       </div>
@@ -595,12 +649,17 @@ function BusPage() {
               <span
                 className={`absolute -left-[7px] top-1.5 h-3 w-3 rounded-full border-2 border-primary ${inTrip ? "bg-primary" : "bg-background"}`}
               />
-              <button
-                onClick={() => setStop({ id: s.id, name: s.name, co })}
-                className="text-left font-medium underline-offset-2 hover:underline"
-              >
-                {s.name}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setStop({ id: s.id, name: s.name, co })}
+                  className="text-left font-medium underline-offset-2 hover:underline"
+                >
+                  {s.name}
+                </button>
+                {route && (
+                  <BusStopFare route={route} co={co} dir={dir} idx={stops.indexOf(s)} />
+                )}
+              </div>
               <div className="flex items-center gap-3 text-sm">
                 {s.etas.length ? (
                   s.etas.map((e, i) => <Countdown key={i} at={e} now={now} />)
