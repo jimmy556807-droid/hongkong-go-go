@@ -505,39 +505,32 @@ function MtrPage() {
                 )}
               </div>
 
-              <div className="mx-5 mt-3 grid grid-cols-2 gap-3">
-                <div className="rounded-2xl border bg-card p-4 text-sm">
+              <div className="mx-5 mt-3 rounded-2xl border bg-card p-4 text-sm">
+                <div className="flex items-center justify-between gap-3">
                   <p className="flex items-center gap-2 font-semibold">
                     <Clock size={16} className="text-primary" />
                     服務時間
                   </p>
-                  <p className="mt-2 text-lg font-bold">
-                    {stationDetails?.openingHours ?? "05:50 – 01:00"}
-                  </p>
-                  <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-                    <div className="rounded-lg bg-muted/60 px-2.5 py-2">
-                      <span className="block text-muted-foreground">首班車</span>
-                      <b className="mt-0.5 block text-sm">{stationDetails?.firstTrain ?? "—"}</b>
-                    </div>
-                    <div className="rounded-lg bg-muted/60 px-2.5 py-2">
-                      <span className="block text-muted-foreground">尾班車</span>
-                      <b className="mt-0.5 block text-sm">{stationDetails?.lastTrain ?? "—"}</b>
-                    </div>
+                  <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
+                    每日服務
+                  </span>
+                </div>
+                <p className="mt-3 text-xl font-bold tracking-tight">
+                  {stationDetails?.openingHours ?? "05:50 – 01:00"}
+                </p>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-xl bg-muted/60 px-3 py-2.5">
+                    <span className="block text-muted-foreground">首班車</span>
+                    <b className="mt-0.5 block text-sm">{stationDetails?.firstTrain ?? "—"}</b>
                   </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    開放時間｜首班車｜尾班車；實際時間或因特別安排調整
-                  </p>
+                  <div className="rounded-xl bg-muted/60 px-3 py-2.5">
+                    <span className="block text-muted-foreground">尾班車</span>
+                    <b className="mt-0.5 block text-sm">{stationDetails?.lastTrain ?? "—"}</b>
+                  </div>
                 </div>
-                <div className="rounded-2xl border bg-card p-4 text-sm">
-                  <p className="flex items-center gap-2 font-semibold">
-                    <Navigation size={16} className="text-primary" />
-                    途經路線
-                  </p>
-                  <p className="mt-2 font-bold">{boardLine.name}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    第 {boardLine.stations.indexOf(sta) + 1} 站
-                  </p>
-                </div>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  實際時間或因特別安排調整
+                </p>
               </div>
 
               <div className="mx-5 mt-3 rounded-2xl border bg-card p-4 text-sm">
