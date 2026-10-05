@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Clock, MapPin, ArrowRight, Wallet, Navigation, DoorOpen } from "lucide-react";
 import { getMtr } from "@/lib/hk.functions";
 import { getMtrFare } from "@/lib/fare.functions";
+import { TRAIN_DIRECTIONS } from "@/lib/mtr-direction-hours";
 import { LrtPanel } from "@/components/LrtPanel";
 const AIRPORT_EXPRESS_FARES: Record<string, { octopus: number; single: number }> = {
   "HOK-AIR": { octopus: 110, single: 120 },
@@ -209,6 +210,7 @@ function MtrPage() {
   const { position, locate } = useCurrentLocation();
   const now = useNow();
   const stationDetails = STATION_DETAILS[sta];
+  const trainDirections = TRAIN_DIRECTIONS[sta] ?? [];
 
   useEffect(() => {
     if (!position || activeTab !== "trains") return;
@@ -534,16 +536,43 @@ function MtrPage() {
                 <p className="mt-3 text-xl font-bold tracking-tight">
                   {stationDetails?.openingHours ?? "05:50 – 01:00"}
                 </p>
-                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                  <div className="rounded-xl bg-muted/60 px-3 py-2.5">
-                    <span className="block text-muted-foreground">首班車</span>
-                    <b className="mt-0.5 block text-sm">{stationDetails?.firstTrain ?? "—"}</b>
+                {trainDirections.length > 0 ? (
+                  <div className="mt-3 space-y-2">
+                    {trainDirections.map((service, index) => {
+                      const serviceLine = LINE_BY_CODE[service.line];
+                      return (
+                        <div
+                          key={`${service.line}-${service.direction}-${index}`}
+                          className="rounded-xl bg-muted/60 px-3 py-2.5"
+                        >
+                          <div className="flex flex-wrap items-center gap-2 text-xs">
+                            <span
+                              className="rounded-full px-2 py-0.5 font-semibold text-white"
+                              style={{ backgroundColor: serviceLine?.color ?? "var(--primary)" }}
+                            >
+                              {serviceLine?.name ?? service.line}
+                            </span>
+                            <b>{service.direction}</b>
+                          </div>
+                          <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                            <div>
+                              <span className="block text-muted-foreground">首班車</span>
+                              <b className="mt-0.5 block text-sm">{service.first}</b>
+                            </div>
+                            <div>
+                              <span className="block text-muted-foreground">尾班車</span>
+                              <b className="mt-0.5 block text-sm">{service.last}</b>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <div className="rounded-xl bg-muted/60 px-3 py-2.5">
-                    <span className="block text-muted-foreground">尾班車</span>
-                    <b className="mt-0.5 block text-sm">{stationDetails?.lastTrain ?? "—"}</b>
-                  </div>
-                </div>
+                ) : (
+                  <p className="mt-3 rounded-xl bg-muted/60 px-3 py-2.5 text-xs text-muted-foreground">
+                    暫未提供此站的行車方向及首末班車時間
+                  </p>
+                )}
                 <p className="mt-3 text-xs text-muted-foreground">
                   實際時間或因特別安排調整
                 </p>
