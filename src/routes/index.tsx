@@ -28,7 +28,7 @@ import { FareSaverCard } from "@/components/FareSaverCard";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "港行 — 實時香港交通" },
+      { title: "港行" },
       { name: "description", content: "香港巴士、港鐵、渡輪實時資訊，天氣及特別交通消息一站睇。" },
       { property: "og:title", content: "港行 — 實時香港交通" },
       {
@@ -73,9 +73,7 @@ function LiveClock() {
         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/60" />
         <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
       </span>
-      <span className="text-[10px] font-semibold tracking-wide text-primary/75">現在</span>
       <span className="h-3.5 w-px bg-primary/20" aria-hidden="true" />
-      <Clock size={13} strokeWidth={2.5} className="text-primary" aria-hidden="true" />
       <span className="font-mono text-xs font-bold tabular-nums tracking-[0.12em] text-foreground">
         {time}
       </span>
