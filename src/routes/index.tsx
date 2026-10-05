@@ -47,6 +47,33 @@ const MODE_ICON = { mtr: TrainFront, bus: Bus, ferry: Ship, walk: Footprints } a
 type Fav = { id: string; from: string; to: string; prefs: string[] };
 const FAV_KEY = "hk-transit-favs";
 
+function formatClock(date: Date) {
+  return [date.getHours(), date.getMinutes(), date.getSeconds()]
+    .map((value) => String(value).padStart(2, "0"))
+    .join(":");
+}
+
+function LiveClock() {
+  const [time, setTime] = useState("--:--:--");
+
+  useEffect(() => {
+    const updateTime = () => setTime(formatClock(new Date()));
+    updateTime();
+    const timer = window.setInterval(updateTime, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  return (
+    <div
+      aria-label={`目前時間 ${time}`}
+      aria-live="polite"
+      className="border-b bg-muted/30 px-5 py-2 text-center font-mono text-sm font-semibold tracking-widest text-muted-foreground"
+    >
+      {time}
+    </div>
+  );
+}
+
 function loadFavs(): Fav[] {
   try {
     const v = JSON.parse(localStorage.getItem(FAV_KEY) ?? "[]");
@@ -323,6 +350,7 @@ function Index() {
   ] as const;
   return (
     <div>
+      <LiveClock />
       <div className="flex items-start justify-between px-5 pb-4 pt-8">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">港行</h1>
