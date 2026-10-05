@@ -354,18 +354,6 @@ function BusPage() {
   className="w-full bg-transparent py-3 outline-none"
             />
           </div>
-          <button
-            type="button"
-            aria-label="轉方向"
-            onClick={() => {
-              setDir(dir === "outbound" ? "inbound" : "outbound");
-              setFrom(null);
-              setTo(null);
-            }}
-            className="rounded-xl border bg-card px-4"
-          >
-            <ArrowLeftRight />
-          </button>
         </div>
         {matches.length > 0 && (
           <ul className="absolute inset-x-0 z-20 mt-1 max-h-80 overflow-auto rounded-xl border bg-card shadow-lg">
@@ -597,10 +585,25 @@ function BusPage() {
       )}
 
       {q.data?.dest && (
-        <p className="mx-5 mt-4 text-sm text-muted-foreground">
-          <b className="mr-2 text-lg text-foreground">{q.data.route}</b>
-          <CoTag co={co} /> 往 {q.data.dest}
-        </p>
+        <div className="mx-5 mt-4 flex items-center justify-between gap-3 text-sm text-muted-foreground">
+          <p className="min-w-0">
+            <b className="mr-2 text-lg text-foreground">{q.data.route}</b>
+            <CoTag co={co} /> 往 {q.data.dest}
+          </p>
+          <button
+            type="button"
+            aria-label="調換起點和終點"
+            onClick={() => {
+              setDir(dir === "outbound" ? "inbound" : "outbound");
+              setFrom(null);
+              setTo(null);
+            }}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary transition hover:bg-primary/20"
+          >
+            <ArrowLeftRight size={14} />
+            調換起訖
+          </button>
+        </div>
       )}
 
       {route && (

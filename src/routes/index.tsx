@@ -47,6 +47,42 @@ const MODE_ICON = { mtr: TrainFront, bus: Bus, ferry: Ship, walk: Footprints } a
 type Fav = { id: string; from: string; to: string; prefs: string[] };
 const FAV_KEY = "hk-transit-favs";
 
+function formatClock(date: Date) {
+  return [date.getHours(), date.getMinutes(), date.getSeconds()]
+    .map((value) => String(value).padStart(2, "0"))
+    .join(":");
+}
+
+function LiveClock() {
+  const [time, setTime] = useState("--:--:--");
+
+  useEffect(() => {
+    const updateTime = () => setTime(formatClock(new Date()));
+    updateTime();
+    const timer = window.setInterval(updateTime, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  return (
+    <div
+      aria-label={`目前時間 ${time}`}
+      aria-live="polite"
+      className="inline-flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/[0.08] px-2.5 py-1.5 shadow-sm shadow-primary/5"
+    >
+      <span className="relative flex h-2 w-2" aria-hidden="true">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/60" />
+        <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+      </span>
+      <span className="text-[10px] font-semibold tracking-wide text-primary/75">現在</span>
+      <span className="h-3.5 w-px bg-primary/20" aria-hidden="true" />
+      <Clock size={13} strokeWidth={2.5} className="text-primary" aria-hidden="true" />
+      <span className="font-mono text-xs font-bold tabular-nums tracking-[0.12em] text-foreground">
+        {time}
+      </span>
+    </div>
+  );
+}
+
 function loadFavs(): Fav[] {
   try {
     const v = JSON.parse(localStorage.getItem(FAV_KEY) ?? "[]");
@@ -323,9 +359,12 @@ function Index() {
   ] as const;
   return (
     <div>
-      <div className="flex items-start justify-between px-5 pb-4 pt-8">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">港行</h1>
+      <div className="flex items-start justify-between gap-4 px-5 pb-4 pt-8">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-bold tracking-tight">港行</h1>
+            <LiveClock />
+          </div>
           <p className="mt-1 text-sm text-muted-foreground">實時香港交通資訊</p>
         </div>
         <LocationButton />
