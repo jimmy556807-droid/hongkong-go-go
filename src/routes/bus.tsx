@@ -341,7 +341,7 @@ function BusPage() {
 
   return (
     <div>
-      <PageHeader title="巴士" sub="九巴 / 城巴 / 專綫小巴實時到站" />
+      <PageHeader title="巴士"/>
       <div className="relative mx-5">
         <div className="flex gap-2">
           <div className="flex flex-1 items-center gap-2 rounded-xl border bg-card px-3">
@@ -397,20 +397,6 @@ function BusPage() {
 
       {!route && (
         <div className="mx-5 mt-4">
-          <div className="flex items-end justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                附近交通
-              </p>
-              <h2 className="mt-1 flex items-center gap-2 text-xl font-bold">
-                <Navigation size={18} className="text-primary" />
-                附近巴士實時到站
-              </h2>
-            </div>
-            <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">
-              LIVE
-            </span>
-          </div>
           <div
             className="mt-3 grid grid-cols-3 rounded-xl bg-muted p-1"
             role="tablist"
@@ -471,7 +457,7 @@ function BusPage() {
                   <i className="mr-1 inline-block size-2 rounded-full bg-amber-500" />
                   專綫小巴
                 </span>
-                <span className="ml-auto">每 30–60 秒更新</span>
+                <span className="ml-auto">每 60 秒更新</span>
               </div>
               <div className="divide-y">
                 {activeCo !== "GMB" &&
@@ -565,9 +551,6 @@ function BusPage() {
               </div>
             </div>
           )}
-          <p className="mt-2 text-[11px] text-muted-foreground">
-            九巴、城巴及專綫小巴按附近距離排列；所有班次均按定位站點顯示實時到站。
-          </p>
         </div>
       )}
 
@@ -580,7 +563,7 @@ function BusPage() {
           }}
           className="mx-5 mt-3 text-sm text-primary underline"
         >
-          ← 返��附近巴士路線
+          ← 返回
         </button>
       )}
 
@@ -601,7 +584,7 @@ function BusPage() {
             className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary transition hover:bg-primary/20"
           >
             <ArrowLeftRight size={14} />
-            調換起訖
+            調換
           </button>
         </div>
       )}
@@ -765,7 +748,7 @@ function GmbSheet({ routeId, dest, onClose }: { routeId: string; dest?: string |
                   aria-label="調換起點終點"
                   className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary"
                 >
-                  <ArrowLeftRight size={12} /> 調換起訖點
+                  <ArrowLeftRight size={12} /> 調換
                 </button>
               )}
             </div>
