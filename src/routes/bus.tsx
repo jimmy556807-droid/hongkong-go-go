@@ -11,6 +11,7 @@ import {
   getStopEta,
   getGmbRoutes,
   getGmbEta,
+  getGmbDetail,
 } from "@/lib/hk.functions";
 import { getBusFare } from "@/lib/fare.functions";
 import { Wallet } from "lucide-react";
@@ -265,6 +266,7 @@ function BusPage() {
   const [from, setFrom] = useState<number | null>(null);
   const [to, setTo] = useState<number | null>(null);
   const [stop, setStop] = useState<{ id: string; name: string; co: "KMB" | "CTB" } | null>(null);
+  const [gmb, setGmb] = useState<{ id: string; dest?: string } | null>(null);
   const { position: pos, status: locationStatus } = useCurrentLocation();
   const now = useNow();
   const fn = useServerFn(getBus);
@@ -384,7 +386,10 @@ function BusPage() {
               ) : (
                 <li key={`GMB-${match.route.id}`}>
                   <button
-                    onClick={() => setActiveCo("GMB")}
+                    onClick={() => {
+                      setInput("");
+                      setGmb({ id: match.route.id });
+                    }}
                     className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-muted"
                   >
                     <b className="w-12 text-amber-700">{match.route.name}</b>
@@ -529,7 +534,11 @@ function BusPage() {
                     ))}
                 {activeCo === "GMB" &&
                   nearbyGmb.data?.map((r) => (
-                    <div key={`GMB${r.routeId}`} className="flex items-center gap-3 px-4 py-3">
+                    <button
+                      key={`GMB${r.routeId}${r.dest}`}
+                      onClick={() => setGmb({ id: r.routeId, dest: r.dest })}
+                      className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-muted/60"
+                    >
                       <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-xs font-bold text-amber-800">
                         小巴
                       </span>
@@ -563,7 +572,7 @@ function BusPage() {
                           <span className="text-xs text-muted-foreground">暫無班次</span>
                         )}
                       </span>
-                    </div>
+                    </button>
                   ))}
               </div>
             </div>
@@ -685,6 +694,7 @@ function BusPage() {
           );
         })}
       </ol>
+      {gmb && <GmbSheet routeId={gmb.id} dest={gmb.dest} onClose={() => setGmb(null)} />}
       {stop && (
         <StopSheet
           stop={stop}
@@ -700,6 +710,122 @@ function BusPage() {
           }}
         />
       )}
+    </div>
+  );
+}
+
+function GmbSheet({ routeId, dest, onClose }: { routeId: string; dest?: string; onClose: () => void }) {
+  const detailFn = useServerFn(getGmbDetail);
+  const etaFn = useServerFn(getGmbEta);
+  const [seq, setSeq] = useState<number | null>(null);
+  const detail = useQuery({
+    queryKey: ["gmb-detail", routeId],
+    queryFn: () => detailFn({ data: { routeId } }),
+    staleTime: 3600e3,
+  });
+  const dirs = detail.data?.directions ?? [];
+  const cur = dirs.find((d) => d.routeSeq === seq) ?? dirs.find((d) => d.dest === dest) ?? dirs[0];
+  const eta = useQuery({
+    queryKey: ["gmb-eta", routeId, cur?.routeSeq],
+    queryFn: () => etaFn({ data: { routeId, routeSeq: cur!.routeSeq } }),
+    enabled: !!cur,
+    refetchInterval: 60000,
+  });
+  const full = cur?.fares.length ? Math.max(...cur.fares) : null;
+  const sectional = !!cur?.fares.some((f) => f !== full);
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end bg-foreground/40" onClick={onClose}>
+      <div
+        className="mx-auto max-h-[85vh] w-full max-w-md overflow-auto rounded-t-3xl bg-background p-5 pb-8"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <h2 className="flex items-center gap-2 text-lg font-bold">
+            <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-xs text-amber-800">小巴</span>
+            {detail.data?.route || "專綫小巴"}
+          </h2>
+          <button aria-label="關閉" onClick={onClose}>
+            <X />
+          </button>
+        </div>
+        {detail.isLoading && <p className="mt-4 text-sm text-muted-foreground">載入路線資料中…</p>}
+        {detail.isError && <p className="mt-4 text-sm text-destructive">未能載入此小巴路線</p>}
+        {cur && (
+          <>
+            <p className="mt-1 text-sm">
+              {cur.orig} → <b>{cur.dest}</b>
+            </p>
+            {dirs.length > 1 && (
+              <button
+                onClick={() => setSeq(dirs.find((d) => d.routeSeq !== cur.routeSeq)!.routeSeq)}
+                className="mt-2 inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs"
+              >
+                <ArrowLeftRight size={12} /> 轉方向
+              </button>
+            )}
+            <div className="mt-3 rounded-2xl border bg-card p-4 text-sm">
+              <p className="flex items-center gap-2 font-semibold">
+                <Wallet size={16} className="text-primary" />
+                車資詳情
+              </p>
+              {full == null ? (
+                <p className="mt-1 text-muted-foreground">暫無此路線車資資料</p>
+              ) : (
+                <div className="mt-2 grid grid-cols-2 gap-1.5 text-xs">
+                  <div className="flex justify-between rounded-lg bg-muted/60 px-2.5 py-1.5">
+                    <span className="text-muted-foreground">全程成人</span>
+                    <b>${full.toFixed(1)}</b>
+                  </div>
+                  <div className="flex justify-between rounded-lg bg-muted/60 px-2.5 py-1.5">
+                    <span className="text-muted-foreground">分段收費</span>
+                    <b>{sectional ? "有" : "無"}</b>
+                  </div>
+                  <div className="flex justify-between rounded-lg bg-muted/60 px-2.5 py-1.5">
+                    <span className="text-muted-foreground">$2 優惠（65 歲以上）</span>
+                    <b>$2.0</b>
+                  </div>
+                </div>
+              )}
+            </div>
+            <p className="mt-4 text-xs font-semibold text-muted-foreground">
+              沿途站點（{cur.stops.length} 個）· 每分鐘更新
+            </p>
+            <ol className="mt-2 border-l-2 border-amber-300">
+              {cur.stops.map((s, i) => {
+                const e = eta.data?.find((x) => x.seq === s.seq);
+                const fare = cur.fares[Math.min(i, cur.fares.length - 1)];
+                return (
+                  <li key={s.seq} className="relative pb-3 pl-5">
+                    <span className="absolute -left-[7px] top-1.5 h-3 w-3 rounded-full border-2 border-amber-500 bg-background" />
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      {s.name}
+                      {fare != null && i < cur.stops.length - 1 && (
+                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
+                          ${fare.toFixed(1)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs">
+                      {eta.isLoading ? (
+                        <span className="text-muted-foreground">…</span>
+                      ) : e?.etas.length ? (
+                        e.etas.map((x, k) => (
+                          <b key={k} className="mr-2 text-amber-700">
+                            {x.diff != null ? (x.diff <= 1 ? "即將到站" : `${x.diff} 分鐘`) : x.timestamp?.slice(11, 16)}
+                          </b>
+                        ))
+                      ) : (
+                        <span className="text-muted-foreground">暫無班次</span>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+            <p className="mt-2 text-[11px] text-muted-foreground">站點旁車資為該站上車嘅成人收費，以車上公布為準。</p>
+          </>
+        )}
+      </div>
     </div>
   );
 }
