@@ -24,7 +24,6 @@ export const Route = createFileRoute("/border")({
 type Cp = { code?: string; name: string; stat: string; hours: string; suspended?: boolean };
 const GROUPS: Array<{ title: string; items: Cp[] }> = [
   {
-    // title: "鐵路口岸",
     items: [
       { code: "LWS", name: "羅湖", stat: "羅湖", hours: "06:30–00:00" },
       { code: "LSC", name: "落馬洲支線（福田）", stat: "落馬洲支線", hours: "06:30–22:30" },
@@ -33,19 +32,8 @@ const GROUPS: Array<{ title: string; items: Cp[] }> = [
       { code: "HYW", name: "香園圍（蓮塘）", stat: "香園圍", hours: "07:00–22:00" },
       { code: "LMC", name: "落馬洲（皇崗）", stat: "落馬洲", hours: "24 小時" },
       { code: "MKT", name: "文錦渡", stat: "文錦渡", hours: "07:00–22:00" },
-      // { name: "高鐵西九龍", stat: "高鐵西九龍", hours: "06:30–23:30" },
     ],
   }
-  // {
-  //   title: "陸路公路口岸",
-  //   items: [
-  //     { code: "SBC", name: "深圳灣", stat: "深圳灣", hours: "06:30–00:00" },
-  //     { code: "HZM", name: "港珠澳大橋", stat: "港珠澳大橋", hours: "24 小時" },
-  //     { code: "HYW", name: "香園圍（蓮塘）", stat: "香園圍", hours: "07:00–22:00" },
-  //     { code: "LMC", name: "落馬洲（皇崗）", stat: "落馬洲", hours: "24 小時" },
-  //     { code: "MKT", name: "文錦渡", stat: "文錦渡", hours: "07:00–22:00" },
-  //   ],
-  // }
 ];
 
 const STATUS: Record<number, { t: string; c: string }> = {
@@ -151,7 +139,7 @@ function BorderPage() {
         </section>
       ))}
       <p className="mx-5 mt-4 text-[11px] text-muted-foreground">
-        輪候狀態只限陸路口岸（居民：正常 &lt;15 分鐘、繁忙 &lt;30 分鐘；旅客：正常 &lt;30、繁忙 &lt;45）。
+        輪候狀態（居民：正常 &lt;15 分鐘、繁忙 &lt;30 分鐘；旅客：正常 &lt;30 分鐘、繁忙 &lt;45 分鐘）
       </p>
     </div>
   );
