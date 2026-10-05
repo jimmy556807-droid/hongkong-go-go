@@ -83,7 +83,6 @@ function FerryPage() {
                   <div className="rounded-xl border border-primary/15 bg-primary/5 px-3 py-3 text-xs">
                     <div className="mb-2 flex items-center justify-between gap-3">
                       <p className="font-semibold text-foreground">街渡服務詳情 {r.serviceCode ? `· ${r.serviceCode}` : ""}</p>
-                      <span className="text-muted-foreground">運輸署資料</span>
                     </div>
                     <div className="grid gap-1 text-muted-foreground">
                       {r.operator && <p>營辦商：{r.operator}</p>}
@@ -106,7 +105,6 @@ function FerryPage() {
                   </ol>
                 </div>
                 {r.link && <FerryTimetableDialog link={r.link} title={`${r.from} ${r.bidirectional ? "⇄" : "→"} ${r.to}`} />}
-                <p className="text-xs text-muted-foreground">資料更新：{r.updated}</p>
               </div>
             )}
           </div>
