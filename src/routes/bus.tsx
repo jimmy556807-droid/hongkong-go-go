@@ -714,7 +714,7 @@ function BusPage() {
   );
 }
 
-function GmbSheet({ routeId, dest, onClose }: { routeId: string; dest?: string; onClose: () => void }) {
+function GmbSheet({ routeId, dest, onClose }: { routeId: string; dest?: string | undefined; onClose: () => void }) {
   const detailFn = useServerFn(getGmbDetail);
   const etaFn = useServerFn(getGmbEta);
   const [seq, setSeq] = useState<number | null>(null);
