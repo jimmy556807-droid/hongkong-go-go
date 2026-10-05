@@ -248,7 +248,9 @@ function MtrPage() {
         { k: "DOWN", t: q.data.down },
       ].filter((g) => g.t.length)
     : [];
-  const otherLines = LINES.filter((l) => l.code !== boardLine.code && l.stations.includes(sta));
+  const otherLines = LINES.filter(
+    (l) => !l.code.startsWith("LRT") && l.stations.includes(sta),
+  );
 
   // direction of first segment for live wait time
   const seg0 = route?.segs[0];
@@ -503,7 +505,7 @@ function MtrPage() {
                 </div>
                 {otherLines.length > 0 && (
                   <div className="mt-3 flex flex-wrap items-center gap-2">
-                    轉乘：
+                    可轉乘路線：
                     {otherLines.map((l) => (
                       <button
                         key={l.code}
