@@ -42,7 +42,7 @@ function NewsPage() {
           {news.isLoading && <p className="mx-5 text-muted-foreground">載入中…</p>}
           {news.isError && <p className="mx-5 text-destructive">暫時無法載入消息</p>}
           {news.data?.length === 0 && <p className="mx-5 text-muted-foreground">暫無特別交通消息</p>}
-          <div className="mx-5 flex flex-col gap-3">{news.data?.map((item) => <article key={item.id} className="rounded-2xl border-l-4 border-primary bg-card p-4 shadow-sm"><p className="whitespace-pre-line text-sm leading-relaxed">{item.text}</p><p className="mt-2 text-xs text-muted-foreground">{item.date}</p></article>)}</div>
+          <div className="mx-5 flex flex-col gap-3">{news.data?.map((item) => <article key={item.id} className="rounded-2xl border-l-5 border-primary bg-card p-4 shadow-sm"><p className="whitespace-pre-line text-sm leading-relaxed">{item.text}</p><p className="mt-2 text-xs text-muted-foreground">{item.date}</p></article>)}</div>
         </section>
       ) : (
         <section aria-label="行車時間顯示器" className="mx-5">
