@@ -461,6 +461,50 @@ function MtrPage() {
                 )}
               </div>
 
+              <div className="mx-5 mt-3 overflow-hidden rounded-2xl border bg-card text-sm">
+                <button
+                  type="button"
+                  onClick={() => setStationListOpen((open) => !open)}
+                  className="flex w-full items-center justify-between px-4 py-3 text-left font-semibold"
+                  aria-expanded={stationListOpen}
+                >
+                  <span className="flex items-center gap-2">
+                    <MapPin size={16} style={{ color: line.color }} />
+                    {line.name}車站清單
+                  </span>
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {stationListOpen ? "收回" : `展開（${line.stations.length}站）`}
+                  </span>
+                </button>
+                {stationListOpen && (
+                  <div className="border-t px-4 py-3">
+                    <ol className="space-y-1.5">
+                      {line.stations.map((code, index) => (
+                        <li key={code}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSta(code);
+                              setLine(line);
+                            }}
+                            className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left transition-colors hover:bg-muted ${code === sta ? "bg-primary/10 font-semibold text-foreground" : "text-muted-foreground"}`}
+                            aria-current={code === sta ? "location" : undefined}
+                          >
+                            <span
+                              className="flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                              style={{ background: line.color }}
+                            >
+                              {index + 1}
+                            </span>
+                            <span>{STATIONS[code]}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+              </div>
+
               <div className="mx-5 mt-3 grid grid-cols-2 gap-3">
                 <div className="rounded-2xl border bg-card p-4 text-sm">
                   <p className="flex items-center gap-2 font-semibold">
@@ -545,49 +589,6 @@ function MtrPage() {
                 </div>
               )}
 
-              <div className="mx-5 mt-3 overflow-hidden rounded-2xl border bg-card text-sm">
-                <button
-                  type="button"
-                  onClick={() => setStationListOpen((open) => !open)}
-                  className="flex w-full items-center justify-between px-4 py-3 text-left font-semibold"
-                  aria-expanded={stationListOpen}
-                >
-                  <span className="flex items-center gap-2">
-                    <MapPin size={16} style={{ color: line.color }} />
-                    {line.name}車站清單
-                  </span>
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {stationListOpen ? "收回" : `展開（${line.stations.length}站）`}
-                  </span>
-                </button>
-                {stationListOpen && (
-                  <div className="border-t px-4 py-3">
-                    <ol className="space-y-1.5">
-                      {line.stations.map((code, index) => (
-                        <li key={code}>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSta(code);
-                              setLine(line);
-                            }}
-                            className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left transition-colors hover:bg-muted ${code === sta ? "bg-primary/10 font-semibold text-foreground" : "text-muted-foreground"}`}
-                            aria-current={code === sta ? "location" : undefined}
-                          >
-                            <span
-                              className="flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
-                              style={{ background: line.color }}
-                            >
-                              {index + 1}
-                            </span>
-                            <span>{STATIONS[code]}</span>
-                          </button>
-                        </li>
-                      ))}
-                    </ol>
-                  </div>
-                )}
-              </div>
             </>
           )}
 
