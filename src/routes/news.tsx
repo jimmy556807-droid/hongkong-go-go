@@ -32,7 +32,7 @@ function NewsPage() {
 
   return (
     <div>
-      <PageHeader title="交通資訊"/>
+      <PageHeader title="交通資訊" sub=""/>
       <div className="mx-5 mb-5 flex rounded-xl bg-muted p-1" role="tablist" aria-label="交通資訊類別">
         <button className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium ${tab === "news" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`} onClick={() => setTab("news")} role="tab" aria-selected={tab === "news"}>特別交通消息</button>
         <button className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium ${tab === "journey" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`} onClick={() => setTab("journey")} role="tab" aria-selected={tab === "journey"}>行車時間顯示器</button>
@@ -46,7 +46,6 @@ function NewsPage() {
         </section>
       ) : (
         <section aria-label="行車時間顯示器" className="mx-5">
-          <div className="mb-4"><p className="text-xs text-muted-foreground">每兩分鐘更新</p></div>
           <div className="mb-4 flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="地區分類">{(["全部", "港島", "九龍", "新界"] as const).map((item) => <button key={item} onClick={() => setRegion(item)} className={`shrink-0 rounded-full px-4 py-2 text-sm ${region === item ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`} aria-selected={region === item}>{item}</button>)}</div>
           {journey.isLoading && <p className="text-muted-foreground">載入行車時間資料中…</p>}
           {journey.isError && <p className="text-destructive">暫時無法載入行車時間資料，請稍後再試。</p>}
