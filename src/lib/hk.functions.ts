@@ -391,6 +391,26 @@ export const getGmbEta = createServerFn({ method: "GET" })
     }));
   });
 
+export const getGmbDetail = createServerFn({ method: "GET" })
+  .inputValidator((d) => z.object({ routeId: z.string().regex(/^\d+$/) }).parse(d))
+  .handler(async ({ data }) => {
+    const [rt, fl] = await Promise.all([
+      fetch(`${GMB_API}/route/${data.routeId}`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      getFareList().catch(() => null),
+    ]);
+    const info: any = rt?.data?.[0];
+    const flRoutes = Object.values((fl?.routeList ?? {}) as Record<string, any>).filter((v) => String(v.gtfsId) === data.routeId && v.co?.includes("gmb"));
+    const directions = await Promise.all(((info?.directions ?? []) as any[]).map(async (d) => {
+      const rs: any = await fetch(`${GMB_API}/route-stop/${data.routeId}/${d.route_seq}`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+      const stops = ((rs?.data?.route_stops ?? []) as any[]).map((s) => ({ seq: Number(s.stop_seq), name: String(s.name_tc ?? "") }));
+      const dest = String(d.dest_tc ?? "");
+      const match = flRoutes.find((v) => v.dest?.zh === dest && v.stops?.gmb?.length === stops.length) ?? flRoutes.find((v) => v.dest?.zh === dest);
+      const fares = Array.isArray(match?.fares) ? (match.fares as string[]).map(Number) : [];
+      return { routeSeq: Number(d.route_seq), orig: String(d.orig_tc ?? ""), dest, stops, fares };
+    }));
+    return { route: String(info?.route_code ?? ""), region: String(info?.region ?? ""), desc: String(info?.description_tc ?? ""), directions };
+  });
+
 export const getMtr = createServerFn({ method: "GET" })
   .inputValidator((d) => z.object({ line: z.string().max(4), sta: z.string().max(4) }).parse(d))
   .handler(async ({ data }) => {
