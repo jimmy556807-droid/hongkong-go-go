@@ -438,7 +438,9 @@ function MtrPage() {
                     <p className="flex items-center gap-2 font-semibold">
                       <MapPin size={16} className="text-primary" />
                       {STATIONS[sta]}站詳情
-                      <span>車站代號 {sta}</span>
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-muted-foreground">
+                        <span>車站代號 {sta}</span>
+                      </div>
                     </p>
                   </div>
                 </div>
