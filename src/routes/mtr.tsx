@@ -505,7 +505,7 @@ function MtrPage() {
                 </div>
                 {otherLines.length > 0 && (
                   <div className="mt-3 flex flex-wrap items-center gap-2">
-                    可轉乘路線：
+                    可乘搭路線：
                     {otherLines.map((l) => (
                       <button
                         key={l.code}
