@@ -205,7 +205,6 @@ function MtrPage() {
   const [sta, setSta] = useState("CEN");
   const [dest, setDest] = useState("TSW");
   const [activeTab, setActiveTab] = useState<"route" | "trains" | "station">("trains");
-  const [stationListOpen, setStationListOpen] = useState(false);
   const { position, locate } = useCurrentLocation();
   const now = useNow();
   const stationDetails = STATION_DETAILS[sta];
@@ -326,7 +325,7 @@ function MtrPage() {
             ))}
           </div>
 
-          {activeTab !== "trains" && (
+          {activeTab === "route" && (
             <div className="flex gap-2 overflow-x-auto px-5 pb-2 pt-3">
               {LINES.filter((l) => !l.code.startsWith("LRT")).map((l) => (
                 <button
@@ -342,6 +341,59 @@ function MtrPage() {
                   {l.name}
                 </button>
               ))}
+            </div>
+          )}
+
+          {activeTab === "station" && (
+            <div className="mx-5 mt-3 overflow-hidden rounded-2xl border bg-card">
+              <div className="border-b px-4 pb-3 pt-4">
+                <div className="flex items-center gap-2 text-sm font-semibold">
+                  <MapPin size={16} style={{ color: line.color }} />
+                  選擇路線查看車站
+                </div>
+                <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                  {LINES.filter((l) => !l.code.startsWith("LRT")).map((l) => (
+                    <button
+                      key={l.code}
+                      onClick={() => selectLine(l)}
+                      className="shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium"
+                      style={
+                        line.code === l.code
+                          ? { background: l.color, color: "white", borderColor: l.color }
+                          : { borderColor: l.color }
+                      }
+                    >
+                      {l.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="px-4 py-3">
+                <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">{line.name}車站清單</span>
+                  <span>{line.stations.length}站</span>
+                </div>
+                <ol className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                  {line.stations.map((code, index) => (
+                    <li key={code}>
+                      <button
+                        type="button"
+                        onClick={() => setSta(code)}
+                        className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm transition-colors hover:bg-muted ${code === sta ? "bg-primary/10 font-semibold text-foreground" : "text-muted-foreground"}`}
+                        aria-current={code === sta ? "location" : undefined}
+                      >
+                        <span
+                          className="flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                          style={{ background: line.color }}
+                        >
+                          {index + 1}
+                        </span>
+                        <span className="truncate">{STATIONS[code]}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ol>
+              </div>
             </div>
           )}
 
@@ -461,49 +513,6 @@ function MtrPage() {
                 )}
               </div>
 
-              <div className="mx-5 mt-3 overflow-hidden rounded-2xl border bg-card text-sm">
-                <button
-                  type="button"
-                  onClick={() => setStationListOpen((open) => !open)}
-                  className="flex w-full items-center justify-between px-4 py-3 text-left font-semibold"
-                  aria-expanded={stationListOpen}
-                >
-                  <span className="flex items-center gap-2">
-                    <MapPin size={16} style={{ color: line.color }} />
-                    {line.name}車站清單
-                  </span>
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {stationListOpen ? "收回" : `展開（${line.stations.length}站）`}
-                  </span>
-                </button>
-                {stationListOpen && (
-                  <div className="border-t px-4 py-3">
-                    <ol className="space-y-1.5">
-                      {line.stations.map((code, index) => (
-                        <li key={code}>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSta(code);
-                              setLine(line);
-                            }}
-                            className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left transition-colors hover:bg-muted ${code === sta ? "bg-primary/10 font-semibold text-foreground" : "text-muted-foreground"}`}
-                            aria-current={code === sta ? "location" : undefined}
-                          >
-                            <span
-                              className="flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
-                              style={{ background: line.color }}
-                            >
-                              {index + 1}
-                            </span>
-                            <span>{STATIONS[code]}</span>
-                          </button>
-                        </li>
-                      ))}
-                    </ol>
-                  </div>
-                )}
-              </div>
 
               <div className="mx-5 mt-3 rounded-2xl border bg-card p-4 text-sm">
                 <div className="flex items-center justify-between gap-3">
