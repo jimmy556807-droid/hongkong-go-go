@@ -1,8 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { Clock3 } from "lucide-react";
 import { useState } from "react";
 import { PageHeader } from "@/components/BottomNav";
+import { Button } from "@/components/ui/button";
 import { getBorder } from "@/lib/border.functions";
 
 export const Route = createFileRoute("/border")({
@@ -19,25 +21,25 @@ export const Route = createFileRoute("/border")({
   component: BorderPage,
 });
 
-type Cp = { code?: string; name: string; stat: string; note?: string };
+type Cp = { code?: string; name: string; stat: string; hours: string; suspended?: boolean };
 const GROUPS: Array<{ title: string; items: Cp[] }> = [
   {
     title: "鐵路口岸",
     items: [
-      { code: "LWS", name: "羅湖", stat: "羅湖" },
-      { code: "LSC", name: "落馬洲支線（福田）", stat: "落馬洲支線" },
-      { name: "高鐵西九龍", stat: "高鐵西九龍" },
+      { code: "LWS", name: "羅湖", stat: "羅湖", hours: "06:30–00:00" },
+      { code: "LSC", name: "落馬洲支線（福田）", stat: "落馬洲支線", hours: "06:30–22:30" },
+      { name: "高鐵西九龍", stat: "高鐵西九龍", hours: "06:30–23:30" },
     ],
   },
   {
     title: "陸路公路口岸",
     items: [
-      { code: "SBC", name: "深圳灣", stat: "深圳灣" },
-      { code: "HZM", name: "港珠澳大橋", stat: "港珠澳大橋" },
-      { code: "HYW", name: "香園圍（蓮塘）", stat: "香園圍" },
-      { code: "LMC", name: "落馬洲（皇崗）", stat: "落馬洲" },
-      { code: "MKT", name: "文錦渡", stat: "文錦渡" },
-      { code: "STK", name: "沙頭角", stat: "沙頭角" },
+      { code: "SBC", name: "深圳灣", stat: "深圳灣", hours: "06:30–00:00" },
+      { code: "HZM", name: "港珠澳大橋", stat: "港珠澳大橋", hours: "24 小時" },
+      { code: "HYW", name: "香園圍（蓮塘）", stat: "香園圍", hours: "07:00–22:00" },
+      { code: "LMC", name: "落馬洲（皇崗）", stat: "落馬洲", hours: "24 小時" },
+      { code: "MKT", name: "文錦渡", stat: "文錦渡", hours: "07:00–22:00" },
+      { code: "STK", name: "沙頭角", stat: "沙頭角", hours: "旅客通關暫停", suspended: true },
     ],
   }
 ];
@@ -70,15 +72,16 @@ function BorderPage() {
       <PageHeader title="口岸實時人流" sub="入境處官方資料・輪候每 15 分鐘更新" />
       <div className="mx-5 grid grid-cols-2 rounded-xl bg-muted p-1" role="tablist">
         {(["resident", "visitor"] as const).map((k) => (
-          <button
+          <Button
             key={k}
             role="tab"
             aria-selected={who === k}
             onClick={() => setWho(k)}
-            className={`rounded-lg py-2 text-sm font-semibold ${who === k ? "bg-card shadow-sm" : "text-muted-foreground"}`}
+            variant="ghost"
+            className={`h-9 rounded-lg text-sm font-semibold hover:bg-card ${who === k ? "bg-card shadow-sm hover:bg-card" : "text-muted-foreground"}`}
           >
             {k === "resident" ? "香港居民" : "訪港旅客"}
-          </button>
+          </Button>
         ))}
       </div>
       {q.isLoading && <p className="mx-5 mt-4 text-sm text-muted-foreground">載入中…</p>}
@@ -93,12 +96,23 @@ function BorderPage() {
               const isOpen = open === cp.name;
               return (
                 <div key={cp.name}>
-                  <button onClick={() => setOpen(isOpen ? null : cp.name)} className="w-full px-4 py-3 text-left">
-                    <div className="flex items-center justify-between">
-                      <b>{cp.name}</b>
+                  <Button
+                    variant="ghost"
+                    onClick={() => setOpen(isOpen ? null : cp.name)}
+                    aria-expanded={isOpen}
+                    className="h-auto w-full flex-col items-stretch rounded-none px-4 py-3 text-left hover:bg-muted/40"
+                  >
+                    <div className="flex w-full items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <b className="block truncate">{cp.name}</b>
+                        <span className={`mt-1 flex items-center gap-1 text-xs font-normal ${cp.suspended ? "text-destructive" : "text-muted-foreground"}`}>
+                          <Clock3 className="size-3.5" aria-hidden="true" />
+                          旅客通關：{cp.hours}
+                        </span>
+                      </div>
                       <span className="text-xs text-muted-foreground">{isOpen ? "收起" : "人次"}</span>
                     </div>
-                    <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                    <div className="mt-2 grid w-full grid-cols-2 gap-2 text-sm font-normal">
                       <div className="flex items-center justify-between rounded-lg bg-muted/60 px-2.5 py-1.5">
                         <span className="text-muted-foreground">出境</span>
                         {cp.code ? <Pill v={queue[cp.code]?.depQueue} /> : <b>{fmt(f?.dep[3])}</b>}
@@ -108,7 +122,7 @@ function BorderPage() {
                         {cp.code ? <Pill v={queue[cp.code]?.arrQueue} /> : <b>{fmt(f?.arr[3])}</b>}
                       </div>
                     </div>
-                  </button>
+                  </Button>
                   {isOpen && (
                     <div className="px-4 pb-3 text-xs">
                       <table className="w-full">
@@ -133,7 +147,7 @@ function BorderPage() {
         </section>
       ))}
       <p className="mx-5 mt-4 text-[11px] text-muted-foreground">
-        輪候狀態只限陸路口岸（居民：正常 &lt;15 分鐘、繁忙 &lt;30 分鐘；旅客：正常 &lt;30、繁忙 &lt;45）。鐵路高鐵、海空口岸冇實時輪候，顯示最近一日出入境人次。
+        輪候狀態只限陸路口岸（居民：正常 &lt;15 分鐘、繁忙 &lt;30 分鐘；旅客：正常 &lt;30、繁忙 &lt;45）。高鐵冇實時輪候，顯示最近一日出入境人次。運作時間以入境處最新安排為準。
       </p>
     </div>
   );
