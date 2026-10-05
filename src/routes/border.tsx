@@ -138,7 +138,7 @@ function BorderPage() {
           </div>
         </section>
       ))}
-      <p className="mx-5 mt-4 text-[11px] text-muted-foreground">
+      <p className="mx-5 mt-4 text-[9px] text-muted-foreground">
         輪候狀態（居民：正常 &lt;15 分鐘、繁忙 &lt;30 分鐘；旅客：正常 &lt;30 分鐘、繁忙 &lt;45 分鐘）
       </p>
     </div>
