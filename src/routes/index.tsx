@@ -363,7 +363,6 @@ function Index() {
             <h1 className="text-2xl font-bold tracking-tight">港行</h1>
             <LiveClock />
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">實時香港交通資訊</p>
         </div>
         <LocationButton />
       </div>
@@ -414,10 +413,6 @@ function Index() {
           ))}
         </div>
       </section>
-      <p className="mx-5 mt-6 flex items-center gap-1 text-xs text-muted-foreground">
-        <Thermometer size={12} />
-        資料來源：運輸署、九巴、港鐵、香港天文台
-      </p>
     </div>
   );
 }
