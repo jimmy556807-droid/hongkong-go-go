@@ -205,6 +205,7 @@ function MtrPage() {
   const [sta, setSta] = useState("CEN");
   const [dest, setDest] = useState("TSW");
   const [activeTab, setActiveTab] = useState<"route" | "trains" | "station">("trains");
+  const [expandedLine, setExpandedLine] = useState<string | null>(null);
   const { position, locate } = useCurrentLocation();
   const now = useNow();
   const stationDetails = STATION_DETAILS[sta];
@@ -260,8 +261,11 @@ function MtrPage() {
 
   const selectLine = (l: Line) => {
     setLine(l);
-    setSta(l.stations[0]!);
-    setDest(l.stations[l.stations.length - 1]!);
+  };
+
+  const toggleStationLine = (l: Line) => {
+    setLine(l);
+    setExpandedLine((current) => (current === l.code ? null : l.code));
   };
 
   return (
@@ -355,7 +359,8 @@ function MtrPage() {
                   {LINES.filter((l) => !l.code.startsWith("LRT")).map((l) => (
                     <button
                       key={l.code}
-                      onClick={() => selectLine(l)}
+                      onClick={() => toggleStationLine(l)}
+                      aria-expanded={expandedLine === l.code}
                       className="shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium"
                       style={
                         line.code === l.code
@@ -368,7 +373,7 @@ function MtrPage() {
                   ))}
                 </div>
               </div>
-              <div className="px-4 py-3">
+              {expandedLine === line.code && <div className="px-4 py-3">
                 <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
                   <span className="font-medium text-foreground">{line.name}車站清單</span>
                   <span>{line.stations.length}站</span>
@@ -393,7 +398,7 @@ function MtrPage() {
                     </li>
                   ))}
                 </ol>
-              </div>
+              </div>}
             </div>
           )}
 
