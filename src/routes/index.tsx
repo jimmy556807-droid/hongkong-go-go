@@ -67,9 +67,10 @@ function LiveClock() {
     <div
       aria-label={`目前時間 ${time}`}
       aria-live="polite"
-      className="border-b bg-muted/30 px-5 py-2 text-center font-mono text-sm font-semibold tracking-widest text-muted-foreground"
+      className="inline-flex items-center gap-1.5 rounded-full border bg-muted/40 px-2.5 py-1 font-mono text-xs font-semibold tracking-wider text-muted-foreground"
     >
-      {time}
+      <Clock size={13} aria-hidden="true" />
+      <span>{time}</span>
     </div>
   );
 }
@@ -350,10 +351,12 @@ function Index() {
   ] as const;
   return (
     <div>
-      <LiveClock />
-      <div className="flex items-start justify-between px-5 pb-4 pt-8">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">港行</h1>
+      <div className="flex items-start justify-between gap-4 px-5 pb-4 pt-8">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-bold tracking-tight">港行</h1>
+            <LiveClock />
+          </div>
           <p className="mt-1 text-sm text-muted-foreground">實時香港交通資訊</p>
         </div>
         <LocationButton />
