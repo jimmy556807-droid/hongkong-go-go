@@ -752,17 +752,20 @@ function GmbSheet({ routeId, dest, onClose }: { routeId: string; dest?: string |
         {detail.isError && <p className="mt-4 text-sm text-destructive">未能載入此小巴路線</p>}
         {cur && (
           <>
-            <p className="mt-1 text-sm">
-              {cur.orig} → <b>{cur.dest}</b>
-            </p>
-            {dirs.length > 1 && (
-              <button
-                onClick={() => setSeq(dirs.find((d) => d.routeSeq !== cur.routeSeq)!.routeSeq)}
-                className="mt-2 inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs"
-              >
-                <ArrowLeftRight size={12} /> 轉方向
-              </button>
-            )}
+            <div className="mt-1 flex items-center gap-2 text-sm">
+              <p>
+                {cur.orig} → <b>{cur.dest}</b>
+              </p>
+              {dirs.length > 1 && (
+                <button
+                  onClick={() => setSeq(dirs.find((d) => d.routeSeq !== cur.routeSeq)!.routeSeq)}
+                  aria-label="調換起點終點"
+                  className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary"
+                >
+                  <ArrowLeftRight size={12} /> 調換起訖點
+                </button>
+              )}
+            </div>
             <div className="mt-3 rounded-2xl border bg-card p-4 text-sm">
               <p className="flex items-center gap-2 font-semibold">
                 <Wallet size={16} className="text-primary" />
