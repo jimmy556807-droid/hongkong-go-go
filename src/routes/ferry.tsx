@@ -40,7 +40,7 @@ function FerryPage() {
   );
   return (
     <div>
-      <PageHeader title="渡輪" sub={`運輸署官方資料 · 共 ${data.length} 條航線`} />
+      <PageHeader title="渡輪" sub={`共 ${data.length} 條航線`} />
       <div className="mx-5 flex items-center gap-2 rounded-xl border bg-card px-3">
         <Search size={18} className="text-muted-foreground" />
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="搜尋碼頭或目的地，例如 長洲" className="w-full bg-transparent py-3 outline-none" />
