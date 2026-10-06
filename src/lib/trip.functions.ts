@@ -22,12 +22,13 @@ export type Plan = {
   tags: string[];
   legs: Leg[];
   tip: string;
+  weatherNote: string;
 };
 
 const Input = z.object({
   from: z.string().min(1).max(60),
   to: z.string().min(1).max(60),
-  prefs: z.array(z.string().max(20)).max(6),
+  prefs: z.array(z.string().max(20)).max(6).optional().default([]),
 });
 
 async function readStream(res: Response) {
@@ -110,12 +111,18 @@ async function news() {
 
 async function weather() {
   try {
-    const r = await fetch(
-      "https://data.weather.gov.hk/weatherAPI/opendata/weather.php?lang=tc&dataType=rhrread",
-    );
-    const x: any = await r.json();
+    const base = "https://data.weather.gov.hk/weatherAPI/opendata/weather.php?lang=tc&dataType=";
+    const [x, wr]: any[] = await Promise.all([
+      fetch(base + "rhrread").then((r) => r.json()),
+      fetch(base + "warnsum").then((r) => r.json()).catch(() => ({})),
+    ]);
     const t = x?.temperature?.data?.[0];
-    return `氣溫約 ${t?.value ?? "--"}°C，濕度 ${x?.humidity?.data?.[0]?.value ?? "--"}%`;
+    const rain = Math.max(0, ...((x?.rainfall?.data ?? []).map((d: any) => Number(d?.max) || 0)));
+    const warns = Object.values(wr ?? {})
+      .map((v: any) => v?.name)
+      .filter(Boolean)
+      .join("、");
+    return `氣溫約 ${t?.value ?? "--"}°C，濕度 ${x?.humidity?.data?.[0]?.value ?? "--"}%，過去一小時最高雨量 ${rain}mm${warns ? `，生效警告：${warns}` : "，冇天氣警告"}`;
   } catch {
     return "";
   }
@@ -123,7 +130,7 @@ async function weather() {
 
 export const planTrip = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => Input.parse(d))
-  .handler(async ({ data }): Promise<{ plans: Plan[]; error?: string }> => {
+  .handler(async ({ data }): Promise<{ plans: Plan[]; error?: string; weather?: string }> => {
     const key = process.env["DEEPSEEK_API_KEY"];
     if (!key) return { plans: [], error: "未設定 DeepSeek 金鑰，請先在設定加入。" };
 
@@ -134,9 +141,11 @@ export const planTrip = createServerFn({ method: "POST" })
 
     const sys = `你是香港交通路線規劃專家，熟悉港鐵、九巴、城巴、渡輪及小巴。
 只輸出 JSON，格式：
-{"plans":[{"title":"方案名稱","totalMins":35,"fare":"約 $12.5","tags":["最快","一次轉乘"],"tip":"一句實用提示","legs":[{"mode":"mtr|bus|ferry|walk","name":"荃灣綫 / 巴士 1A / 步行","from":"起點站名","to":"落車站名","mins":12,"note":"簡短說明","line":"TWL","sta":"CEN","co":"KMB"}]}]}
+{"plans":[{"title":"方案名稱","totalMins":35,"fare":"約 $12.5","tags":["最快","一次轉乘"],"tip":"一句實用提示","weatherNote":"因應天氣點解揀呢條路線（一句）","legs":[{"mode":"mtr|bus|ferry|walk","name":"荃灣綫 / 巴士 1A / 步行","from":"起點站名","to":"落車站名","mins":12,"note":"簡短說明","line":"TWL","sta":"CEN","co":"KMB"}]}]}
 規則：
 - 只提供 1 個方案：喺所有可行路線入面，揀條又平又快嘅（時間同車費都合理最低），唔好列備用方案。
+- 必須考慮現時天氣：落雨、有暴雨/雷暴/颱風/酷熱警告時，減少露天步行同渡輪，優先港鐵及室內轉乘；天氣好可揀直達巴士或渡輪。
+- fare 要計埋全程總車資（成人八達通），totalMins 係全程總時間。
 - mode 為 mtr 時，必須填上 line（路綫代碼）同 sta（上車站代碼），只可用下列代碼。
 - mode 為 bus 時，name 用「巴士 <路線號>」，co 填 KMB 或 CTB。
 - 全部文字用香港繁體中文口語書面語。
@@ -160,7 +169,7 @@ ${lines}
             { role: "system", content: sys },
             {
               role: "user",
-              content: `由「${data.from}」去「${data.to}」。偏好：${data.prefs.join("、") || "無特別偏好"}。現在時間：${new Date().toLocaleString("zh-HK", { timeZone: "Asia/Hong_Kong" })}`,
+              content: `由「${data.from}」去「${data.to}」。請推薦最適合嘅路線。現在時間：${new Date().toLocaleString("zh-HK", { timeZone: "Asia/Hong_Kong" })}`,
             },
           ],
         }),
@@ -191,6 +200,7 @@ ${lines}
       fare: String(p?.fare ?? ""),
       tags: (p?.tags ?? []).slice(0, 3).map(String),
       tip: String(p?.tip ?? ""),
+      weatherNote: String(p?.weatherNote ?? ""),
       legs: (p?.legs ?? []).slice(0, 8).map((l: any) => ({
         mode: (["mtr", "bus", "ferry", "walk"].includes(l?.mode) ? l.mode : "walk") as Leg["mode"],
         name: String(l?.name ?? ""),
@@ -217,5 +227,5 @@ ${lines}
       ),
     );
 
-    return { plans };
+    return { plans, weather: w };
   });

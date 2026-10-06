@@ -18,7 +18,9 @@ import {
   Loader2,
   Star,
   Trash2,
-  Play,
+  MapPin,
+  ArrowUpDown,
+  CloudSun,
 } from "lucide-react";
 import { getNews, getWeather } from "@/lib/hk.functions";
 import { planTrip, type Leg } from "@/lib/trip.functions";
@@ -41,7 +43,6 @@ export const Route = createFileRoute("/")({
 });
 
 const SPOTS = ["中環", "尖沙咀", "旺角", "銅鑼灣", "觀塘", "沙田", "屯門", "機場"];
-const PREFS = ["最快到達", "最少轉乘", "行少啲路", "港鐵優先", "巴士優先"];
 const MODE_ICON = { mtr: TrainFront, bus: Bus, ferry: Ship, walk: Footprints } as const;
 
 type Fav = { id: string; from: string; to: string; prefs: string[] };
@@ -138,21 +139,16 @@ function LegRow({ leg }: { leg: Leg }) {
 function Planner() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
-  const [prefs, setPrefs] = useState<string[]>(["最快到達"]);
   const [active, setActive] = useState<"from" | "to">("from");
   const { favs, save, remove } = useFavs();
   const plan = useServerFn(planTrip);
-  const m = useMutation({ mutationFn: () => plan({ data: { from, to, prefs } }) });
-  // v5: 未撳之前 status 都係 "pending"，要用 submittedAt 分辨係咪真係規劃緊
+  const m = useMutation({ mutationFn: () => plan({ data: { from: from.trim(), to: to.trim() } }) });
   const running = m.isPending && m.submittedAt > 0;
-
-  const toggle = (p: string) =>
-    setPrefs((v) => (v.includes(p) ? v.filter((x) => x !== p) : [...v, p]));
-  const canSave = from.trim() && to.trim();
-  const applyFav = (f: Fav) => {
-    setFrom(f.from);
-    setTo(f.to);
-    setPrefs(f.prefs);
+  const ready = !!(from.trim() && to.trim());
+  const p = m.data?.plans[0];
+  const swap = () => {
+    setFrom(to);
+    setTo(from);
   };
 
   return (
@@ -162,70 +158,41 @@ function Planner() {
         智能行程規劃
       </h2>
       <p className="mt-1 text-xs text-muted-foreground">
-        輸入起點同目的地，結合實時交通同天氣為你安排路線。
+        輸入出發地同目的地，AI 按現時天氣同交通推薦最適合路線。
       </p>
 
-      {favs.length > 0 && (
-        <div className="mt-3">
-          <p className="mb-1.5 flex items-center gap-1 text-xs font-medium text-muted-foreground">
-            <Star size={12} className="text-primary" />
-            常用行程
-          </p>
-          <div className="space-y-1.5">
-            {favs.map((f) => (
-              <div
-                key={f.id}
-                className="flex items-center gap-2 rounded-xl border bg-background px-3 py-2"
-              >
-                <button
-                  type="button"
-                  onClick={() => applyFav(f)}
-                  className="min-w-0 flex-1 text-left"
-                >
-                  <p className="truncate text-sm font-medium">
-                    {f.from} → {f.to}
-                  </p>
-                  {f.prefs.length > 0 && (
-                    <p className="truncate text-xs text-muted-foreground">{f.prefs.join("、")}</p>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => applyFav(f)}
-                  aria-label="載入行程"
-                  className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"
-                >
-                  <Play size={14} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => remove(f.id)}
-                  aria-label="刪除收藏"
-                  className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground"
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            ))}
-          </div>
+      <div className="relative mt-3 rounded-xl border bg-background">
+        <div className="flex items-center gap-2 px-3">
+          <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-primary" />
+          <input
+            value={from}
+            onFocus={() => setActive("from")}
+            onChange={(e) => setFrom(e.target.value)}
+            placeholder="出發地，例如：中環"
+            className="w-full bg-transparent py-3 pr-10 text-sm outline-none"
+          />
         </div>
-      )}
-      <div className="mt-3 space-y-2">
-        <input
-          value={from}
-          onFocus={() => setActive("from")}
-          onChange={(e) => setFrom(e.target.value)}
-          placeholder="出發地，例如：中環"
-          className="w-full rounded-xl border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary"
-        />
-        <input
-          value={to}
-          onFocus={() => setActive("to")}
-          onChange={(e) => setTo(e.target.value)}
-          placeholder="目的地，例如：沙田"
-          className="w-full rounded-xl border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary"
-        />
+        <div className="mx-3 border-t" />
+        <div className="flex items-center gap-2 px-3">
+          <MapPin size={12} className="shrink-0 text-destructive" />
+          <input
+            value={to}
+            onFocus={() => setActive("to")}
+            onChange={(e) => setTo(e.target.value)}
+            placeholder="目的地，例如：沙田"
+            className="w-full bg-transparent py-3 pr-10 text-sm outline-none"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={swap}
+          aria-label="調換出發地同目的地"
+          className="absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full border bg-card text-primary"
+        >
+          <ArrowUpDown size={14} />
+        </button>
       </div>
+
       <div className="mt-2 flex flex-wrap gap-1.5">
         {SPOTS.map((s) => (
           <button
@@ -238,106 +205,119 @@ function Planner() {
           </button>
         ))}
       </div>
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        {PREFS.map((p) => (
-          <button
-            key={p}
-            type="button"
-            onClick={() => toggle(p)}
-            className={`rounded-full px-3 py-1.5 text-xs font-medium ${prefs.includes(p) ? "bg-primary text-primary-foreground" : "border text-muted-foreground"}`}
-          >
-            {p}
-          </button>
-        ))}
-      </div>
-      <div className="mt-4 flex gap-2">
+
+      <div className="mt-3 flex gap-2">
         <button
           type="button"
-          disabled={!canSave}
-          onClick={() => save({ id: crypto.randomUUID(), from: from.trim(), to: to.trim(), prefs })}
-          className="flex items-center justify-center gap-2 rounded-xl border border-primary px-4 py-3 text-sm font-semibold text-primary disabled:opacity-50"
+          disabled={!ready}
+          onClick={() => save({ id: crypto.randomUUID(), from: from.trim(), to: to.trim(), prefs: [] })}
+          aria-label="收藏行程"
+          className="grid w-12 place-items-center rounded-xl border border-primary text-primary disabled:opacity-50"
         >
           <Star size={16} />
-          收藏
         </button>
         <button
           type="button"
-          disabled={!canSave || running}
+          disabled={!ready || running}
           onClick={() => m.mutate()}
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-base font-bold text-primary-foreground shadow-md shadow-primary/20 disabled:opacity-50"
         >
           {running ? (
             <>
-              <Loader2 size={16} className="animate-spin" />
-              規劃緊路線…
+              <Loader2 size={18} className="animate-spin" />
+              睇緊天氣同路況…
             </>
           ) : (
             <>
               一鍵出發
-              <ArrowRight size={16} />
+              <ArrowRight size={18} />
             </>
           )}
         </button>
       </div>
 
-      {m.isError && (
-        <p className="mt-3 rounded-xl bg-destructive/10 p-3 text-sm text-destructive">
-          規劃失敗，請稍後再試。
-        </p>
+      {favs.length > 0 && (
+        <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1">
+          {favs.map((f) => (
+            <span
+              key={f.id}
+              className="flex shrink-0 items-center gap-1 rounded-full border bg-background py-1 pl-3 pr-1 text-xs"
+            >
+              <button type="button" onClick={() => { setFrom(f.from); setTo(f.to); }}>
+                {f.from} → {f.to}
+              </button>
+              <button
+                type="button"
+                onClick={() => remove(f.id)}
+                aria-label="刪除收藏"
+                className="grid h-5 w-5 place-items-center rounded-full text-muted-foreground"
+              >
+                <Trash2 size={11} />
+              </button>
+            </span>
+          ))}
+        </div>
       )}
-      {m.data?.error && (
+
+      {(m.isError || m.data?.error) && (
         <p className="mt-3 rounded-xl bg-destructive/10 p-3 text-sm text-destructive">
-          {m.data.error}
+          {m.data?.error ?? "規劃失敗，請稍後再試。"}
         </p>
       )}
 
-      {!!m.data?.plans.length && (
-        <div className="mt-4 space-y-3">
-          {m.data.plans.map((p, i) => (
-            <article
-              key={i}
-              className={`rounded-xl border p-3 ${i === 0 ? "border-primary/40 bg-primary/5" : ""}`}
-            >
-              <div className="flex items-baseline justify-between gap-2">
-                <h3 className="text-sm font-bold">
-                  {i === 0 ? "最平最快・" : ""}
-                  {p.title}
-                </h3>
-                <span className="flex shrink-0 items-center gap-1 text-sm font-semibold text-primary">
-                  <Clock size={13} />
-                  {p.totalMins} 分鐘
-                </span>
-              </div>
-              <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                {p.fare && (
-                  <span className="flex items-center gap-1">
-                    <Wallet size={12} />
-                    {p.fare}
-                  </span>
+      {p && (
+        <article className="mt-4 rounded-xl border border-primary/40 bg-primary/5 p-3">
+          <h3 className="text-sm font-bold">最平最快・{p.title}</h3>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className="rounded-lg bg-card p-2.5">
+              <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Clock size={12} /> 預計時間
+              </p>
+              <p className="mt-0.5 text-xl font-bold text-primary">
+                {p.totalMins}
+                <span className="ml-0.5 text-xs font-medium">分鐘</span>
+              </p>
+            </div>
+            <div className="rounded-lg bg-card p-2.5">
+              <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Wallet size={12} /> 預計車資
+              </p>
+              <p className="mt-0.5 text-xl font-bold text-primary">{p.fare || "—"}</p>
+            </div>
+          </div>
+          {(p.weatherNote || m.data?.weather) && (
+            <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-card p-2 text-xs">
+              <CloudSun size={14} className="mt-0.5 shrink-0 text-primary" />
+              <span>
+                {p.weatherNote}
+                {m.data?.weather && (
+                  <span className="block text-muted-foreground">{m.data.weather}</span>
                 )}
-                {p.tags.map((t) => (
-                  <span key={t} className="rounded-full bg-muted px-2 py-0.5">
-                    {t}
-                  </span>
-                ))}
-              </div>
-              <ul className="mt-3">
-                {p.legs.map((l, j) => (
-                  <LegRow key={j} leg={l} />
-                ))}
-              </ul>
-              {p.tip && (
-                <p className="flex items-start gap-1.5 rounded-lg bg-muted/60 p-2 text-xs text-muted-foreground">
-                  <Lightbulb size={13} className="mt-0.5 shrink-0" />
-                  {p.tip}
-                </p>
-              )}
-            </article>
-          ))}
-          <p className="text-center text-xs text-muted-foreground">
-            建議由 AI 生成，實際班次以官方公布為準。
+              </span>
+            </p>
+          )}
+          {p.tags.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5 text-xs text-muted-foreground">
+              {p.tags.map((t) => (
+                <span key={t} className="rounded-full bg-muted px-2 py-0.5">{t}</span>
+              ))}
+            </div>
+          )}
+          <ul className="mt-3">
+            {p.legs.map((l, j) => (
+              <LegRow key={j} leg={l} />
+            ))}
+          </ul>
+          {p.tip && (
+            <p className="flex items-start gap-1.5 rounded-lg bg-muted/60 p-2 text-xs text-muted-foreground">
+              <Lightbulb size={13} className="mt-0.5 shrink-0" />
+              {p.tip}
+            </p>
+          )}
+          <p className="mt-2 text-center text-xs text-muted-foreground">
+            建議由 AI 生成，實際班次及車資以官方公布為準。
           </p>
-        </div>
+        </article>
       )}
     </section>
   );
