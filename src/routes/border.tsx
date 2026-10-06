@@ -24,6 +24,7 @@ export const Route = createFileRoute("/border")({
 type Cp = { code?: string; name: string; stat: string; hours: string; suspended?: boolean };
 const GROUPS: Array<{ title: string; items: Cp[] }> = [
   {
+    title: "陸路口岸",
     items: [
       { code: "LWS", name: "羅湖", stat: "羅湖", hours: "06:30–00:00" },
       { code: "LSC", name: "落馬洲支線（福田）", stat: "落馬洲支線", hours: "06:30–22:30" },
