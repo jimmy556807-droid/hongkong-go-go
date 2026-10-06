@@ -571,7 +571,7 @@ function BusPage() {
         <div className="mx-5 mt-4 flex items-center justify-between gap-3 text-sm text-muted-foreground">
           <p className="min-w-0">
             <b className="mr-2 text-lg text-foreground">{q.data.route}</b>
-            <CoTag co={co} /> 往 {q.data.dest}
+            <CoTag co={co} /> {"orig" in q.data && q.data.orig ? `${q.data.orig} → ` : "往 "}{q.data.dest}
           </p>
           <button
             type="button"
