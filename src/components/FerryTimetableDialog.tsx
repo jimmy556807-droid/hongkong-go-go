@@ -18,7 +18,6 @@ export function FerryTimetableDialog({ link, title }: { link: string; title: str
       <DialogContent className="flex max-h-[85vh] flex-col gap-3 overflow-hidden sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>班次時間表 · 資料來源：運輸署</DialogDescription>
         </DialogHeader>
         {open && <TimetableBody link={link} />}
       </DialogContent>
