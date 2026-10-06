@@ -22,12 +22,13 @@ export type Plan = {
   tags: string[];
   legs: Leg[];
   tip: string;
+  weatherNote: string;
 };
 
 const Input = z.object({
   from: z.string().min(1).max(60),
   to: z.string().min(1).max(60),
-  prefs: z.array(z.string().max(20)).max(6),
+  prefs: z.array(z.string().max(20)).max(6).optional().default([]),
 });
 
 async function readStream(res: Response) {
@@ -110,12 +111,18 @@ async function news() {
 
 async function weather() {
   try {
-    const r = await fetch(
-      "https://data.weather.gov.hk/weatherAPI/opendata/weather.php?lang=tc&dataType=rhrread",
-    );
-    const x: any = await r.json();
+    const base = "https://data.weather.gov.hk/weatherAPI/opendata/weather.php?lang=tc&dataType=";
+    const [x, wr]: any[] = await Promise.all([
+      fetch(base + "rhrread").then((r) => r.json()),
+      fetch(base + "warnsum").then((r) => r.json()).catch(() => ({})),
+    ]);
     const t = x?.temperature?.data?.[0];
-    return `氣溫約 ${t?.value ?? "--"}°C，濕度 ${x?.humidity?.data?.[0]?.value ?? "--"}%`;
+    const rain = Math.max(0, ...((x?.rainfall?.data ?? []).map((d: any) => Number(d?.max) || 0)));
+    const warns = Object.values(wr ?? {})
+      .map((v: any) => v?.name)
+      .filter(Boolean)
+      .join("、");
+    return `氣溫約 ${t?.value ?? "--"}°C，濕度 ${x?.humidity?.data?.[0]?.value ?? "--"}%，過去一小時最高雨量 ${rain}mm${warns ? `，生效警告：${warns}` : "，冇天氣警告"}`;
   } catch {
     return "";
   }
