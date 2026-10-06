@@ -298,16 +298,30 @@ function BusPage() {
   const matches = useMemo(() => {
     const t = input.trim().toUpperCase();
     if (!t) return [];
-    const busMatches = (routes.data ?? [])
-      .filter((r) => r.route.startsWith(t) || r.dest.includes(t) || r.orig.includes(t))
-      .slice(0, 16)
-      .map((r) => ({ type: "bus" as const, route: r }));
+    const score = (route: string, text: string, co?: string) => {
+      const R = route.toUpperCase();
+      let s = R === t ? 0 : R.startsWith(t) ? 1 : 2;
+      if (s === 2 && !text.toUpperCase().includes(t)) return -1;
+      const tabBonus = co && co === activeCo ? 0 : 1;
+      const digits = (R.match(/^\d+/)?.[0] ?? R).length;
+      return s * 10000 + tabBonus * 1000 + digits * 100 + Math.min(R.length, 99);
+    };
+    const scored = (routes.data ?? [])
+      .map((r) => ({ r, s: score(r.route, `${r.orig} ${r.dest}`, r.co) }))
+      .filter((x) => x.s >= 0)
+      .sort((a, b) => a.s - b.s || a.r.route.localeCompare(b.r.route, "en", { numeric: true }));
+    const perCo = (co: string, n: number) => scored.filter((x) => x.r.co === co).slice(0, n);
+    const busMatches = [...perCo("KMB", 14), ...perCo("CTB", 14)]
+      .sort((a, b) => a.s - b.s || a.r.route.localeCompare(b.r.route, "en", { numeric: true }))
+      .map((x) => ({ type: "bus" as const, route: x.r }));
     const gmbMatches = (gmbRoutes.data ?? [])
-      .filter((r) => `${r.name} ${r.start} ${r.end}`.toUpperCase().includes(t))
-      .slice(0, 8)
-      .map((r) => ({ type: "gmb" as const, route: r }));
-    return [...busMatches, ...gmbMatches];
-  }, [input, routes.data, gmbRoutes.data]);
+      .map((r) => ({ r, s: score(r.name, `${r.start} ${r.end}`, "GMB") }))
+      .filter((x) => x.s >= 0)
+      .sort((a, b) => a.s - b.s)
+      .slice(0, 10)
+      .map((x) => ({ type: "gmb" as const, route: x.r }));
+    return activeCo === "GMB" ? [...gmbMatches, ...busMatches] : [...busMatches, ...gmbMatches];
+  }, [input, routes.data, gmbRoutes.data, activeCo]);
 
   const pick = (r: string, d: "outbound" | "inbound", c: "KMB" | "CTB") => {
     setRoute(r);
