@@ -94,6 +94,27 @@ export const getNews = createServerFn({ method: "GET" }).handler(async () => {
 
 const KMB = "https://data.etabus.gov.hk/v1/transport/kmb";
 const CTB = "https://rt.data.gov.hk/v2/transport/citybus";
+const CTB1 = "https://rt.data.gov.hk/v1/transport/citybus-nwfb";
+const ctbStopNames = new Map<string, string>();
+let ctbRouteCache: { at: number; data: any[] } | null = null;
+async function ctbRouteList() {
+  if (ctbRouteCache && Date.now() - ctbRouteCache.at < 12 * 3600e3) return ctbRouteCache.data;
+  const x = await j(`${CTB1}/route/ctb`).catch(() => j(`${CTB}/route/CTB`));
+  ctbRouteCache = { at: Date.now(), data: x?.data ?? [] };
+  return ctbRouteCache.data;
+}
+async function ctbStopName(id: string) {
+  const hit = ctbStopNames.get(id);
+  if (hit) return hit;
+  const n = await j(`${CTB1}/stop/${id}`).then((x) => String(x?.data?.name_tc ?? id)).catch(() => id);
+  if (n !== id) ctbStopNames.set(id, n);
+  return n;
+}
+async function inBatches<T, U>(items: T[], size: number, f: (t: T) => Promise<U>) {
+  const out: U[] = [];
+  for (let i = 0; i < items.length; i += size) out.push(...(await Promise.all(items.slice(i, i + size).map(f))));
+  return out;
+}
 const co = z.enum(["KMB", "CTB"]).default("KMB");
 
 export const getBus = createServerFn({ method: "GET" })
@@ -102,20 +123,26 @@ export const getBus = createServerFn({ method: "GET" })
     const route = data.route.toUpperCase();
     const d = data.dir === "outbound" ? "O" : "I";
     if (data.co === "CTB") {
-      const rs = await j(`${CTB}/route-stop/CTB/${route}/${data.dir}`);
-      const stops: any[] = rs?.data ?? [];
-      if (!stops.length) return { route, co: "CTB", dest: "", stops: [] };
-      const rows = await Promise.all(stops.map(async (s) => {
+      const [rs, list] = await Promise.all([
+        j(`${CTB1}/route-stop/ctb/${route}/${data.dir}`).catch(() => j(`${CTB}/route-stop/CTB/${route}/${data.dir}`)),
+        ctbRouteList().catch(() => [] as any[]),
+      ]);
+      const stops: any[] = (rs?.data ?? []).sort((a: any, b: any) => Number(a.seq) - Number(b.seq));
+      const info = list.find((r: any) => String(r.route) === route);
+      const orig = info ? String(d === "O" ? info.orig_tc : info.dest_tc) : "";
+      const dest = info ? String(d === "O" ? info.dest_tc : info.orig_tc) : "";
+      if (!stops.length) return { route, co: "CTB", orig, dest: "", stops: [] };
+      const rows = await inBatches(stops, 10, async (s) => {
         const [n, e] = await Promise.all([
-          j(`${CTB}/stop/${s.stop}`).then((x) => String(x?.data?.name_tc ?? s.stop)).catch(() => String(s.stop)),
-          j(`${CTB}/eta/CTB/${s.stop}/${route}`).then((x) => (x?.data ?? []) as any[]).catch(() => [] as any[]),
+          ctbStopName(String(s.stop)),
+          j(`${CTB1}/eta/CTB/${s.stop}/${route}`).then((x) => (x?.data ?? []) as any[]).catch(() => [] as any[]),
         ]);
         return {
           seq: Number(s.seq), id: String(s.stop), name: n,
           etas: e.filter((x) => x.dir === d && x.eta).map((x) => String(x.eta)).slice(0, 3),
         };
-      }));
-      return { route, co: "CTB", dest: rows[rows.length - 1]!.name, stops: rows };
+      });
+      return { route, co: "CTB", orig: orig || rows[0]!.name, dest: dest || rows[rows.length - 1]!.name, stops: rows };
     }
     const [rs, eta] = await Promise.all([j(`${KMB}/route-stop/${route}/${data.dir}/1`), j(`${KMB}/route-eta/${route}/1`)]);
     const stops: any[] = rs?.data ?? [];
@@ -137,7 +164,8 @@ export const getBus = createServerFn({ method: "GET" })
 type R = { route: string; dir: "outbound" | "inbound"; orig: string; dest: string; co: "KMB" | "CTB" };
 
 export const getBusRoutes = createServerFn({ method: "GET" }).handler(async () => {
-  const [k, c] = await Promise.all([j(`${KMB}/route/`).catch(() => null), j(`${CTB}/route/CTB`).catch(() => null)]);
+  const [k, cl] = await Promise.all([j(`${KMB}/route/`).catch(() => null), ctbRouteList().catch(() => [] as any[])]);
+  const c = { data: cl };
   const seen = new Set<string>();
   const out: R[] = [];
   for (const r of k?.data ?? []) {
