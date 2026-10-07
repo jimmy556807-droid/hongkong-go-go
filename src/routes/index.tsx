@@ -287,6 +287,11 @@ function Planner() {
       {p && (
         <article className="mt-3 rounded-xl border border-primary/40 bg-primary/5 p-3">
           <h3 className="text-sm font-bold">{p === plans[0] ? "最平最快・" : "巴士路線・"}{p.title}</h3>
+          {m.data?.locations && (
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              已定位：{m.data.locations.from.lat.toFixed(5)}, {m.data.locations.from.lng.toFixed(5)} → {m.data.locations.to.lat.toFixed(5)}, {m.data.locations.to.lng.toFixed(5)}
+            </p>
+          )}
           <div className="mt-3 grid grid-cols-2 gap-2">
             <div className="rounded-lg bg-card p-2.5">
               <p className="flex items-center gap-1 text-xs text-muted-foreground">
