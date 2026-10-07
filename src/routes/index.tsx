@@ -141,6 +141,21 @@ function Planner() {
   const [to, setTo] = useState("");
   const [active, setActive] = useState<"from" | "to">("from");
   const { favs, save, remove } = useFavs();
+  const locationSuggestions = Array.from(new Set([
+    ...SPOTS,
+    "金鐘", "中環站", "香港站", "九龍站", "尖沙咀站", "旺角站", "太子", "美孚",
+    "荃灣", "大圍", "沙田站", "大埔墟", "粉嶺", "上水", "屯門站", "元朗",
+    "銅鑼灣站", "北角", "將軍澳", "觀塘站", "黃大仙", "啟德", "機場站",
+    "香港國際機場", "港珠澳大橋香港口岸", "西九龍站",
+  ]));
+  const activeValue = active === "from" ? from : to;
+  const suggestions = activeValue.trim().length >= 1
+    ? locationSuggestions.filter((location) => location.includes(activeValue.trim())).slice(0, 6)
+    : [];
+  const chooseLocation = (location: string) => {
+    if (active === "from") setFrom(location);
+    else setTo(location);
+  };
   const plan = useServerFn(planTrip);
   const m = useMutation({ mutationFn: () => plan({ data: { from: from.trim(), to: to.trim() } }) });
   const running = m.isPending && m.submittedAt > 0;
@@ -193,6 +208,31 @@ function Planner() {
         >
           <ArrowUpDown size={14} />
         </button>
+        {suggestions.length > 0 && (
+          <div
+            role="listbox"
+            aria-label={`${active === "from" ? "出發地" : "目的地"}地點建議`}
+            className="absolute inset-x-0 top-full z-20 mt-2 overflow-hidden rounded-xl border bg-card p-1.5 shadow-lg shadow-black/10"
+          >
+            <p className="px-2.5 pb-1 pt-1 text-[11px] font-medium text-muted-foreground">
+              地點建議
+            </p>
+            {suggestions.map((location) => (
+              <button
+                key={location}
+                type="button"
+                role="option"
+                aria-selected={location === activeValue}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => chooseLocation(location)}
+                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-colors hover:bg-primary/10"
+              >
+                <MapPin size={14} className="shrink-0 text-primary" />
+                <span>{location}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="mt-2 flex flex-wrap gap-1.5">
