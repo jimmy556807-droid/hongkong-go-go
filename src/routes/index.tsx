@@ -145,7 +145,9 @@ function Planner() {
   const m = useMutation({ mutationFn: () => plan({ data: { from: from.trim(), to: to.trim() } }) });
   const running = m.isPending && m.submittedAt > 0;
   const ready = !!(from.trim() && to.trim());
-  const p = m.data?.plans[0];
+  const [idx, setIdx] = useState(0);
+  const plans = m.data?.plans ?? [];
+  const p = plans[Math.min(idx, Math.max(plans.length - 1, 0))];
   const swap = () => {
     setFrom(to);
     setTo(from);
@@ -219,7 +221,7 @@ function Planner() {
         <button
           type="button"
           disabled={!ready || running}
-          onClick={() => m.mutate()}
+          onClick={() => { setIdx(0); m.mutate(); }}
           className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-base font-bold text-primary-foreground shadow-md shadow-primary/20 disabled:opacity-50"
         >
           {running ? (
@@ -265,9 +267,26 @@ function Planner() {
         </p>
       )}
 
+      {plans.length > 1 && (
+        <div className="mt-4 grid grid-cols-2 gap-1 rounded-xl bg-muted p-1">
+          {plans.map((x, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => setIdx(i)}
+              className={`flex items-center justify-center gap-1 rounded-lg py-2 text-xs font-semibold ${p === x ? "bg-card text-primary shadow-sm" : "text-muted-foreground"}`}
+            >
+              {i === 0 ? <Sparkles size={13} /> : <Bus size={13} />}
+              {i === 0 ? "最平最快" : "巴士路線"}
+              <span className="font-normal">· {x.totalMins} 分</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {p && (
-        <article className="mt-4 rounded-xl border border-primary/40 bg-primary/5 p-3">
-          <h3 className="text-sm font-bold">最平最快・{p.title}</h3>
+        <article className="mt-3 rounded-xl border border-primary/40 bg-primary/5 p-3">
+          <h3 className="text-sm font-bold">{p === plans[0] ? "最平最快・" : "巴士路線・"}{p.title}</h3>
           <div className="mt-3 grid grid-cols-2 gap-2">
             <div className="rounded-lg bg-card p-2.5">
               <p className="flex items-center gap-1 text-xs text-muted-foreground">
