@@ -143,7 +143,9 @@ export const planTrip = createServerFn({ method: "POST" })
 只輸出 JSON，格式：
 {"plans":[{"title":"方案名稱","totalMins":35,"fare":"約 $12.5","tags":["最快","一次轉乘"],"tip":"一句實用提示","weatherNote":"因應天氣點解揀呢條路線（一句）","legs":[{"mode":"mtr|bus|ferry|walk","name":"荃灣綫 / 巴士 1A / 步行","from":"起點站名","to":"落車站名","mins":12,"note":"簡短說明","line":"TWL","sta":"CEN","co":"KMB"}]}]}
 規則：
-- 只提供 1 個方案：喺所有可行路線入面，揀條又平又快嘅（時間同車費都合理最低），唔好列備用方案。
+- 必須提供 2 個方案，次序固定：
+  1. 第一個：綜合最平最快方案（可用港鐵、巴士、渡輪等任何組合）。
+  2. 第二個：巴士方案，主要以九巴/城巴巴士完成（最多配合步行），title 以「巴士」開頭。
 - 必須考慮現時天氣：落雨、有暴雨/雷暴/颱風/酷熱警告時，減少露天步行同渡輪，優先港鐵及室內轉乘；天氣好可揀直達巴士或渡輪。
 - fare 要計埋全程總車資（成人八達通），totalMins 係全程總時間。
 - mode 為 mtr 時，必須填上 line（路綫代碼）同 sta（上車站代碼），只可用下列代碼。
@@ -194,7 +196,7 @@ ${lines}
       return { plans: [], error: "建議格式有誤，請再試一次。" };
     }
 
-    const plans: Plan[] = (parsed?.plans ?? []).slice(0, 1).map((p: any) => ({
+    const plans: Plan[] = (parsed?.plans ?? []).slice(0, 2).map((p: any) => ({
       title: String(p?.title ?? "建議路線"),
       totalMins: Number(p?.totalMins) || 0,
       fare: String(p?.fare ?? ""),
