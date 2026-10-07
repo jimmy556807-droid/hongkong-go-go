@@ -115,22 +115,55 @@ type GeoPlace = {
   lng: number;
 };
 
+const COMMON_HK_PLACES: Record<string, GeoPlace> = {
+  中環: { displayName: "中環, 香港", lat: 22.2819, lng: 114.1582 },
+  尖沙咀: { displayName: "尖沙咀, 香港", lat: 22.2966, lng: 114.1722 },
+  旺角: { displayName: "旺角, 香港", lat: 22.3193, lng: 114.1694 },
+  銅鑼灣: { displayName: "銅鑼灣, 香港", lat: 22.2800, lng: 114.1848 },
+  觀塘: { displayName: "觀塘, 香港", lat: 22.3120, lng: 114.2259 },
+  沙田: { displayName: "沙田, 香港", lat: 22.3833, lng: 114.1882 },
+  屯門: { displayName: "屯門, 香港", lat: 22.3910, lng: 113.9770 },
+  機場: { displayName: "香港國際機場", lat: 22.3080, lng: 113.9185 },
+};
+
 async function geocode(place: string): Promise<GeoPlace | null> {
-  try {
-    const query = place.includes("香港") ? place : `${place}, 香港`;
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=hk&accept-language=zh-TW&q=${encodeURIComponent(query)}`,
-      { headers: { accept: "application/json", "user-agent": "HongKongGoGo/1.0 (trip planner)" } },
-    );
-    if (!response.ok) return null;
-    const result = (await response.json())?.[0];
-    const lat = Number(result?.lat);
-    const lng = Number(result?.lon);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-    return { displayName: String(result.display_name ?? place), lat, lng };
-  } catch {
-    return null;
+  const input = place.trim();
+  if (!input) return null;
+
+  // Nominatim 對只有區名或香港口語站名的結果不穩定，先用常見地點作可靠兜底。
+  const direct = COMMON_HK_PLACES[input.replace(/香港|(港鐵|地鐵)站$/g, "").trim()];
+  if (direct) return direct;
+
+  const queries = [
+    input,
+    input.includes("香港") ? input : `${input}, 香港`,
+    input.replace(/(港鐵|地鐵)站/g, "站"),
+  ].filter((query, index, all) => query && all.indexOf(query) === index);
+
+  for (const query of queries) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=hk&accept-language=zh-Hant,zh-TW,en&addressdetails=1&q=${encodeURIComponent(query)}`,
+        {
+          signal: controller.signal,
+          headers: { accept: "application/json", "user-agent": "HongKongGoGo/1.0 (trip planner)" },
+        },
+      );
+      clearTimeout(timeout);
+      if (!response.ok) continue;
+      const result = (await response.json())?.[0];
+      const lat = Number(result?.lat);
+      const lng = Number(result?.lon);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        return { displayName: String(result.display_name ?? place), lat, lng };
+      }
+    } catch {
+      // 嘗試下一個查詢格式，避免一次上游逾時令整個行程失敗。
+    }
   }
+  return null;
 }
 
 async function weather() {
@@ -178,7 +211,7 @@ export const planTrip = createServerFn({ method: "POST" })
 【輸出雙方案規則】
 固定輸出 2 個互補方案：
 - 方案一【最推薦・最快最方便】：門對門最快、轉乘最少的最優解；如有合適的 74X、A47X、968 等直達特快，必須優先考慮。
-- 方案二【備用／替代方案】：若方案一為巴士，方案二推薦港鐵或鐵路組合；若方案一為港鐵，方案二推薦純巴士或路面交通方案。方案二不應只是方案一的改寫。
+- 方案二【備用／替代方案】：若方案一為巴士，方案二推薦港鐵或鐵路組合；若方案一為港鐵，方案二推薦純巴士或路面交通方案。方案二不應只是方案一的改��。
 
 【輸出格式】
 只輸出有效 JSON，不要 Markdown、不要額外解釋：
