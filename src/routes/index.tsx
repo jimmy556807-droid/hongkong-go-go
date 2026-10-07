@@ -141,16 +141,36 @@ function Planner() {
   const [to, setTo] = useState("");
   const [active, setActive] = useState<"from" | "to">("from");
   const { favs, save, remove } = useFavs();
-  const locationSuggestions = Array.from(new Set([
-    ...SPOTS,
-    "金鐘", "中環站", "香港站", "九龍站", "尖沙咀站", "旺角站", "太子", "美孚",
-    "荃灣", "大圍", "沙田站", "大埔墟", "粉嶺", "上水", "屯門站", "元朗",
-    "銅鑼灣站", "北角", "將軍澳", "觀塘站", "黃大仙", "啟德", "機場站",
-    "香港國際機場", "港珠澳大橋香港口岸", "西九龍站",
-  ]));
+  const locationSuggestions = [
+    { name: "中環", detail: "香港島 · 中西區", type: "地區" },
+    { name: "中環站", detail: "港鐵港島綫 · 中環金融核心", type: "港鐵站" },
+    { name: "香港站", detail: "港鐵東涌綫／機場快綫 · 中環附近", type: "港鐵站" },
+    { name: "金鐘", detail: "香港島 · 金鐘道與夏慤道交界", type: "地區" },
+    { name: "尖沙咀", detail: "九龍 · 油尖旺區 · 維港海旁", type: "地區" },
+    { name: "尖沙咀站", detail: "港鐵荃灣綫 · 彌敦道", type: "港鐵站" },
+    { name: "旺角", detail: "九龍 · 油尖旺區 · 彌敦道", type: "地區" },
+    { name: "旺角站", detail: "港鐵荃灣綫 · 旺角中心", type: "港鐵站" },
+    { name: "太子", detail: "九龍 · 深水埗區 · 太子道西", type: "地區" },
+    { name: "銅鑼灣", detail: "香港島 · 灣仔區 · 維多利亞公園附近", type: "地區" },
+    { name: "銅鑼灣站", detail: "港鐵港島綫 · 怡和街", type: "港鐵站" },
+    { name: "北角", detail: "香港島 · 東區 · 英皇道", type: "地區" },
+    { name: "觀塘", detail: "九龍 · 觀塘區 · 觀塘道", type: "地區" },
+    { name: "觀塘站", detail: "港鐵觀塘綫 · 觀塘道", type: "港鐵站" },
+    { name: "沙田", detail: "新界 · 沙田區 · 沙田市中心", type: "地區" },
+    { name: "沙田站", detail: "港鐵東鐵綫 · 沙田市中心", type: "港鐵站" },
+    { name: "屯門", detail: "新界 · 屯門區 · 屯門市中心", type: "地區" },
+    { name: "元朗", detail: "新界 · 元朗區 · 元朗市中心", type: "地區" },
+    { name: "將軍澳", detail: "新界 · 西貢區 · 將軍澳市中心", type: "地區" },
+    { name: "啟德", detail: "九龍 · 九龍城區 · 啟德發展區", type: "地區" },
+    { name: "九龍站", detail: "港鐵東涌綫／機場快綫 · 西九龍", type: "港鐵站" },
+    { name: "西九龍站", detail: "高速鐵路 · 柯士甸道西", type: "交通樞紐" },
+    { name: "香港國際機場", detail: "新界 · 大嶼山 · 赤鱲角", type: "機場" },
+    { name: "港珠澳大橋香港口岸", detail: "大嶼山 · 港珠澳大橋口岸人工島", type: "口岸" },
+  ];
   const activeValue = active === "from" ? from : to;
-  const suggestions = activeValue.trim().length >= 1
-    ? locationSuggestions.filter((location) => location.includes(activeValue.trim())).slice(0, 6)
+  const query = activeValue.trim().toLowerCase();
+  const suggestions = query.length >= 1
+    ? locationSuggestions.filter(({ name, detail }) => `${name} ${detail}`.toLowerCase().includes(query)).slice(0, 6)
     : [];
   const chooseLocation = (location: string) => {
     if (active === "from") setFrom(location);
@@ -219,16 +239,26 @@ function Planner() {
             </p>
             {suggestions.map((location) => (
               <button
-                key={location}
+                key={location.name}
                 type="button"
                 role="option"
-                aria-selected={location === activeValue}
+                aria-selected={location.name === activeValue}
                 onMouseDown={(event) => event.preventDefault()}
-                onClick={() => chooseLocation(location)}
-                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-colors hover:bg-primary/10"
+                onClick={() => chooseLocation(location.name)}
+                className="group flex w-full items-center gap-3 rounded-xl px-2.5 py-2.5 text-left transition-colors hover:bg-primary/10"
               >
-                <MapPin size={14} className="shrink-0 text-primary" />
-                <span>{location}</span>
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary/15">
+                  <MapPin size={15} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="truncate text-sm font-semibold text-foreground">{location.name}</span>
+                    <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                      {location.type}
+                    </span>
+                  </span>
+                  <span className="mt-0.5 block truncate text-xs text-muted-foreground">{location.detail}</span>
+                </span>
               </button>
             ))}
           </div>
