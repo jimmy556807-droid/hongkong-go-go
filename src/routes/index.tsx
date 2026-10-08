@@ -19,12 +19,11 @@ import {
   Star,
   Trash2,
   MapPin,
-  ArrowUpDown,
   CloudSun,
 } from "lucide-react";
 import { getNews, getWeather } from "@/lib/hk.functions";
 import { planTrip, type Leg } from "@/lib/trip.functions";
-import { PageHeader, LocationButton } from "@/components/BottomNav";
+import { PageHeader, LocationButton, useCurrentLocation } from "@/components/BottomNav";
 import { FareSaverCard } from "@/components/FareSaverCard";
 
 export const Route = createFileRoute("/")({
@@ -137,9 +136,9 @@ function LegRow({ leg }: { leg: Leg }) {
 }
 
 function Planner() {
-  const [from, setFrom] = useState("");
+  const { position, status, placeName } = useCurrentLocation();
   const [to, setTo] = useState("");
-  const [active, setActive] = useState<"from" | "to">("from");
+  const from = placeName ?? (position ? `目前位置（${position.lat.toFixed(5)}, ${position.lng.toFixed(5)}）` : "");
   const { favs, save, remove } = useFavs();
   const plan = useServerFn(planTrip);
   const m = useMutation({ mutationFn: () => plan({ data: { from: from.trim(), to: to.trim() } }) });
@@ -148,11 +147,6 @@ function Planner() {
   const [idx, setIdx] = useState(0);
   const plans = m.data?.plans ?? [];
   const p = plans[Math.min(idx, Math.max(plans.length - 1, 0))];
-  const swap = () => {
-    setFrom(to);
-    setTo(from);
-  };
-
   return (
     <section className="mx-5 mt-4 rounded-2xl border bg-card p-4">
       <h2 className="flex items-center gap-2 font-semibold">
@@ -168,9 +162,9 @@ function Planner() {
           <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-primary" />
           <input
             value={from}
-            onFocus={() => setActive("from")}
-            onChange={(e) => setFrom(e.target.value)}
-            placeholder="出發地，例如：中環"
+            readOnly
+            aria-label="目前定位出發地"
+            placeholder={status === "loading" ? "正在取得目前位置…" : "請允許定位以設定出發地"}
             className="w-full bg-transparent py-3 pr-10 text-sm outline-none"
           />
         </div>
@@ -179,20 +173,12 @@ function Planner() {
           <MapPin size={12} className="shrink-0 text-destructive" />
           <input
             value={to}
-            onFocus={() => setActive("to")}
             onChange={(e) => setTo(e.target.value)}
             placeholder="目的地，例如：沙田"
             className="w-full bg-transparent py-3 pr-10 text-sm outline-none"
           />
         </div>
-        <button
-          type="button"
-          onClick={swap}
-          aria-label="調換出發地同目的地"
-          className="absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full border bg-card text-primary"
-        >
-          <ArrowUpDown size={14} />
-        </button>
+
       </div>
 
       <div className="mt-2 flex flex-wrap gap-1.5">
@@ -200,7 +186,7 @@ function Planner() {
           <button
             key={s}
             type="button"
-            onClick={() => (active === "from" ? setFrom(s) : setTo(s))}
+            onClick={() => setTo(s)}
             className="rounded-full border px-2.5 py-1 text-xs text-muted-foreground"
           >
             {s}
@@ -245,8 +231,8 @@ function Planner() {
               key={f.id}
               className="flex shrink-0 items-center gap-1 rounded-full border bg-background py-1 pl-3 pr-1 text-xs"
             >
-              <button type="button" onClick={() => { setFrom(f.from); setTo(f.to); }}>
-                {f.from} → {f.to}
+              <button type="button" onClick={() => setTo(f.to)}>
+                目前位置 → {f.to}
               </button>
               <button
                 type="button"
