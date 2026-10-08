@@ -84,7 +84,7 @@ async function liveBus(route: string, co: "KMB" | "CTB", stopName: string) {
     const list: any[] = (x?.data ?? []).filter((e: any) => e.eta);
     if (!list.length) return "現時暫無班次";
     const hit = stopName
-      ? list.find((e: any) => String(e.dest_tc ?? "").includes(stopName)) ?? list[0]
+      ? (list.find((e: any) => String(e.dest_tc ?? "").includes(stopName)) ?? list[0])
       : list[0];
     const m = Math.round((new Date(hit.eta).getTime() - Date.now()) / 60000);
     return m <= 0 ? "車輛即將到站" : `下班車約 ${m} 分鐘`;
@@ -119,11 +119,11 @@ const COMMON_HK_PLACES: Record<string, GeoPlace> = {
   中環: { displayName: "中環, 香港", lat: 22.2819, lng: 114.1582 },
   尖沙咀: { displayName: "尖沙咀, 香港", lat: 22.2966, lng: 114.1722 },
   旺角: { displayName: "旺角, 香港", lat: 22.3193, lng: 114.1694 },
-  銅鑼灣: { displayName: "銅鑼灣, 香港", lat: 22.2800, lng: 114.1848 },
-  觀塘: { displayName: "觀塘, 香港", lat: 22.3120, lng: 114.2259 },
+  銅鑼灣: { displayName: "銅鑼灣, 香港", lat: 22.28, lng: 114.1848 },
+  觀塘: { displayName: "觀塘, 香港", lat: 22.312, lng: 114.2259 },
   沙田: { displayName: "沙田, 香港", lat: 22.3833, lng: 114.1882 },
-  屯門: { displayName: "屯門, 香港", lat: 22.3910, lng: 113.9770 },
-  機場: { displayName: "香港國際機場", lat: 22.3080, lng: 113.9185 },
+  屯門: { displayName: "屯門, 香港", lat: 22.391, lng: 113.977 },
+  機場: { displayName: "香港國際機場", lat: 22.308, lng: 113.9185 },
 };
 
 async function geocode(place: string): Promise<GeoPlace | null> {
@@ -171,10 +171,12 @@ async function weather() {
     const base = "https://data.weather.gov.hk/weatherAPI/opendata/weather.php?lang=tc&dataType=";
     const [x, wr]: any[] = await Promise.all([
       fetch(base + "rhrread").then((r) => r.json()),
-      fetch(base + "warnsum").then((r) => r.json()).catch(() => ({})),
+      fetch(base + "warnsum")
+        .then((r) => r.json())
+        .catch(() => ({})),
     ]);
     const t = x?.temperature?.data?.[0];
-    const rain = Math.max(0, ...((x?.rainfall?.data ?? []).map((d: any) => Number(d?.max) || 0)));
+    const rain = Math.max(0, ...(x?.rainfall?.data ?? []).map((d: any) => Number(d?.max) || 0));
     const warns = Object.values(wr ?? {})
       .map((v: any) => v?.name)
       .filter(Boolean)
@@ -187,17 +189,28 @@ async function weather() {
 
 export const planTrip = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => Input.parse(d))
-  .handler(async ({ data }): Promise<{ plans: Plan[]; error?: string; weather?: string; locations?: { from: GeoPlace; to: GeoPlace } }> => {
-    const key = process.env["DEEPSEEK_API_KEY"];
-    if (!key) return { plans: [], error: "未設定 DeepSeek 金鑰，請先在設定加入。" };
+  .handler(
+    async ({
+      data,
+    }): Promise<{
+      plans: Plan[];
+      error?: string;
+      weather?: string;
+      locations?: { from: GeoPlace; to: GeoPlace };
+    }> => {
+      const key = process.env["DEEPSEEK_API_KEY"];
+      if (!key) return { plans: [], error: "未設定 DeepSeek 金鑰，請先在設定加入。" };
 
-    const [fromLocation, toLocation] = await Promise.all([geocode(data.from), geocode(data.to)]).catch(() => [null, null]);
-    const [n, w] = await Promise.all([news(), weather()]);
-    const lines = LINES.map(
-      (l) => `${l.name}(${l.code}): ${l.stations.map((s) => `${STATIONS[s]}=${s}`).join(" ")}`,
-    ).join("\n");
+      const [fromLocation, toLocation] = await Promise.all([
+        geocode(data.from),
+        geocode(data.to),
+      ]).catch(() => [null, null]);
+      const [n, w] = await Promise.all([news(), weather()]);
+      const lines = LINES.map(
+        (l) => `${l.name}(${l.code}): ${l.stations.map((s) => `${STATIONS[s]}=${s}`).join(" ")}`,
+      ).join("\n");
 
-    const sys = `你是香港本土交通出行規劃專家，精通全港港鐵、九巴、城巴、渡輪及專綫小巴網絡。
+      const sys = `你是香港本土交通出行規劃專家，精通全港港鐵、九巴、城巴、渡輪及專綫小巴網絡。
 你必須站在香港本地人真實出行的角度，為用戶推薦最貼地、門對門最快最方便的路線。
 
 【用戶行程需求】
@@ -233,81 +246,89 @@ ${lines}
 天氣：${w}
 特別交通消息：${n || "暫無"}`;
 
-    let res: Response;
-    try {
-      res = await fetch("https://api.deepseek.com/chat/completions", {
-        method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
-        body: JSON.stringify({
-          model: "deepseek-chat",
-          stream: true,
-          temperature: 0.3,
-          response_format: { type: "json_object" },
-          messages: [
-            { role: "system", content: sys },
-            {
-              role: "user",
-              content: `由「${data.from}」去「${data.to}」。地理編碼座標：出發點 (${fromLocation?.lat ?? "未能解析"}, ${fromLocation?.lng ?? "未能解析"})，終點 (${toLocation?.lat ?? "未能解析"}, ${toLocation?.lng ?? "未能解析"})。請根據可用座標、地點名稱、現時交通消息、天氣及各交通工具的可用性推薦最適合嘅路線。現在時間：${new Date().toLocaleString("zh-HK", { timeZone: "Asia/Hong_Kong" })}`,
-            },
-          ],
-        }),
-      });
-    } catch {
-      return { plans: [], error: "連接 DeepSeek 失敗，請稍後再試。" };
-    }
+      let res: Response;
+      try {
+        res = await fetch("https://api.deepseek.com/chat/completions", {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+          body: JSON.stringify({
+            model: "deepseek-chat",
+            stream: true,
+            temperature: 0.3,
+            response_format: { type: "json_object" },
+            messages: [
+              { role: "system", content: sys },
+              {
+                role: "user",
+                content: `由「${data.from}」去「${data.to}」。地理編碼座標：出發點 (${fromLocation?.lat ?? "未能解析"}, ${fromLocation?.lng ?? "未能解析"})，終點 (${toLocation?.lat ?? "未能解析"}, ${toLocation?.lng ?? "未能解析"})。請根據可用座標、地點名稱、現時交通消息、天氣及各交通工具的可用性推薦最適合嘅路線。現在時間：${new Date().toLocaleString("zh-HK", { timeZone: "Asia/Hong_Kong" })}`,
+              },
+            ],
+          }),
+        });
+      } catch {
+        return { plans: [], error: "連接 DeepSeek 失敗，請稍後再試。" };
+      }
 
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      if (res.status === 401) return { plans: [], error: "DeepSeek 金鑰無效，請更新。" };
-      if (res.status === 402) return { plans: [], error: "DeepSeek 帳戶餘額不足。" };
-      if (res.status === 429) return { plans: [], error: "查詢太頻密，請稍等再試。" };
-      return { plans: [], error: `DeepSeek 錯誤 (${res.status})${body ? `：${body.slice(0, 120)}` : ""}` };
-    }
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        if (res.status === 401) return { plans: [], error: "DeepSeek 金鑰無效，請更新。" };
+        if (res.status === 402) return { plans: [], error: "DeepSeek 帳戶餘額不足。" };
+        if (res.status === 429) return { plans: [], error: "查詢太頻密，請稍等再試。" };
+        return {
+          plans: [],
+          error: `DeepSeek 錯誤 (${res.status})${body ? `：${body.slice(0, 120)}` : ""}`,
+        };
+      }
 
-    const text = await readStream(res);
-    let parsed: any;
-    try {
-      parsed = JSON.parse(text.replace(/^```json\s*|```$/g, "").trim());
-    } catch {
-      return { plans: [], error: "建議格式有誤，請再試一次。" };
-    }
+      const text = await readStream(res);
+      let parsed: any;
+      try {
+        parsed = JSON.parse(text.replace(/^```json\s*|```$/g, "").trim());
+      } catch {
+        return { plans: [], error: "建議格式有誤，請再試一次。" };
+      }
 
-    const plans: Plan[] = (parsed?.plans ?? []).slice(0, 2).map((p: any) => ({
-      title: String(p?.title ?? "建議路線"),
-      totalMins: Number(p?.totalMins) || 0,
-      fare: String(p?.fare ?? ""),
-      tags: (p?.tags ?? []).slice(0, 3).map(String),
-      tip: String(p?.tip ?? ""),
-      weatherNote: String(p?.weatherNote ?? ""),
-      legs: (p?.legs ?? []).slice(0, 8).map((l: any) => ({
-        mode: (["mtr", "bus", "ferry", "walk"].includes(l?.mode) ? l.mode : "walk") as Leg["mode"],
-        name: String(l?.name ?? ""),
-        from: String(l?.from ?? ""),
-        to: String(l?.to ?? ""),
-        mins: Number(l?.mins) || 0,
-        note: String(l?.note ?? ""),
-        line: l?.line ? String(l.line) : undefined,
-        sta: l?.sta ? String(l.sta) : undefined,
-        co: l?.co === "CTB" ? "CTB" : l?.co === "KMB" ? "KMB" : undefined,
-      })),
-    }));
+      const plans: Plan[] = (parsed?.plans ?? []).slice(0, 2).map((p: any) => ({
+        title: String(p?.title ?? "建議路線"),
+        totalMins: Number(p?.totalMins) || 0,
+        fare: String(p?.fare ?? ""),
+        tags: (p?.tags ?? []).slice(0, 3).map(String),
+        tip: String(p?.tip ?? ""),
+        weatherNote: String(p?.weatherNote ?? ""),
+        legs: (p?.legs ?? []).slice(0, 8).map((l: any) => ({
+          mode: (["mtr", "bus", "ferry", "walk"].includes(l?.mode)
+            ? l.mode
+            : "walk") as Leg["mode"],
+          name: String(l?.name ?? ""),
+          from: String(l?.from ?? ""),
+          to: String(l?.to ?? ""),
+          mins: Number(l?.mins) || 0,
+          note: String(l?.note ?? ""),
+          line: l?.line ? String(l.line) : undefined,
+          sta: l?.sta ? String(l.sta) : undefined,
+          co: l?.co === "CTB" ? "CTB" : l?.co === "KMB" ? "KMB" : undefined,
+        })),
+      }));
 
-    await Promise.all(
-      plans.flatMap((p) =>
-        p.legs.map(async (leg) => {
-          if (leg.mode === "mtr" && leg.line && leg.sta) {
-            leg.live = await liveMtr(leg.line, leg.sta);
-          } else if (leg.mode === "bus") {
-            const num = leg.name.match(/[0-9]+[A-Za-z]?/)?.[0];
-            if (num) leg.live = await liveBus(num, leg.co ?? "KMB", leg.to);
-          }
-        }),
-      ),
-    );
+      await Promise.all(
+        plans.flatMap((p) =>
+          p.legs.map(async (leg) => {
+            if (leg.mode === "mtr" && leg.line && leg.sta) {
+              leg.live = await liveMtr(leg.line, leg.sta);
+            } else if (leg.mode === "bus") {
+              const num = leg.name.match(/[0-9]+[A-Za-z]?/)?.[0];
+              if (num) leg.live = await liveBus(num, leg.co ?? "KMB", leg.to);
+            }
+          }),
+        ),
+      );
 
-    return {
-      plans,
-      weather: w,
-      ...(fromLocation && toLocation ? { locations: { from: fromLocation, to: toLocation } } : {}),
-    };
-  });
+      return {
+        plans,
+        weather: w,
+        ...(fromLocation && toLocation
+          ? { locations: { from: fromLocation, to: toLocation } }
+          : {}),
+      };
+    },
+  );
