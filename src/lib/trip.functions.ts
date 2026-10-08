@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { LINES, STATIONS } from "./mtr-data";
+import { LINES, STATIONS, STATION_DETAILS } from "./mtr-data";
 
 export type Leg = {
   mode: "mtr" | "bus" | "ferry" | "walk";
@@ -130,6 +130,25 @@ async function geocode(place: string): Promise<GeoPlace | null> {
   const input = place.trim();
   if (!input) return null;
 
+  const normalized = input
+    .replace(/[香港地區]/g, "")
+    .replace(/(港鐵|地鐵|東鐵|屯馬|輕鐵)?線?站/g, "")
+    .replace(/[、，,\s]/g, "")
+    .trim();
+  const stationHit = Object.entries(STATIONS).find(
+    ([, name]) => normalized === name.replace(/[、，,\s]/g, "") || normalized === `${name}站`,
+  );
+  if (stationHit) {
+    const details = STATION_DETAILS[stationHit[0]];
+    if (details) {
+      return {
+        displayName: `${stationHit[1]}站, 香港`,
+        lat: details.coordinates[0],
+        lng: details.coordinates[1],
+      };
+    }
+  }
+
   // Nominatim 對只有區名或香港口語站名的結果不穩定，先用常見地點作可靠兜底。
   const direct = COMMON_HK_PLACES[input.replace(/香港|(港鐵|地鐵)站$/g, "").trim()];
   if (direct) return direct;
@@ -164,6 +183,33 @@ async function geocode(place: string): Promise<GeoPlace | null> {
     }
   }
   return null;
+}
+
+async function journeyTimes() {
+  try {
+    const response = await fetch("https://resource.data.one.gov.hk/td/jss/Journeytimev2.xml");
+    if (!response.ok) return "";
+    const xml = await response.text();
+    const value = (source: string, tag: string) =>
+      source.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, "i"))?.[1]?.replace(
+        /<!\\[CDATA\\[|\\]\\]>/g,
+        "",
+      ).trim() ?? "";
+    return xml
+      .split(/(?=<LOCATION_ID>)/i)
+      .map((block) => ({
+        location: value(block, "LOCATION_ID"),
+        destination: value(block, "DESTINATION_ID"),
+        minutes: value(block, "JOURNEY_DATA"),
+        capturedAt: value(block, "CAPTURE_DATE"),
+      }))
+      .filter((item) => item.location && item.destination && item.minutes)
+      .slice(0, 80)
+      .map((item) => `${item.location}->${item.destination}: ${item.minutes} (${item.capturedAt})`)
+      .join("\\n");
+  } catch {
+    return "";
+  }
 }
 
 async function weather() {
@@ -205,7 +251,7 @@ export const planTrip = createServerFn({ method: "POST" })
         geocode(data.from),
         geocode(data.to),
       ]).catch(() => [null, null]);
-      const [n, w] = await Promise.all([news(), weather()]);
+      const [n, w, jt] = await Promise.all([news(), weather(), journeyTimes()]);
       const lines = LINES.map(
         (l) => `${l.name}(${l.code}): ${l.stations.map((s) => `${STATIONS[s]}=${s}`).join(" ")}`,
       ).join("\n");
@@ -216,6 +262,8 @@ export const planTrip = createServerFn({ method: "POST" })
 【用戶行程需求】
 - 出發地：${data.from}
 - 目的地：${data.to}
+- 出發地解析：${fromLocation ? `${fromLocation.displayName} (${fromLocation.lat}, ${fromLocation.lng})` : "未能可靠解析，必須降低信心並避免虛構附近車站"}
+- 目的地解析：${toLocation ? `${toLocation.displayName} (${toLocation.lat}, ${toLocation.lng})` : "未能可靠解析，必須降低信心並避免虛構附近車站"}
 
 【核心規劃原則】
 1. 嚴禁盲目推薦多次轉乘港鐵：凡出發地或目的地非地鐵上蓋、或港鐵需要轉乘 2 次或以上時，若路面有「公路/隧道直達特快巴士」，必須優先推薦直達特快為第一方案！
@@ -236,6 +284,12 @@ export const planTrip = createServerFn({ method: "POST" })
 必須只輸出有效 JSON，不可有 Markdown，格式如下：
 {"plans":[{"title":"方案名稱","totalMins":42,"fare":"約 $11.1","tags":["特快直達","無需轉乘"],"tip":"實用搭車貼士","weatherNote":"因應天氣點解揀呢條路線","legs":[{"mode":"walk|bus|mtr|ferry","name":"路線名稱","from":"上車站／出發地名","to":"落車站／目的地名","mins":35,"note":"簡短說明","line":"港鐵路綫代碼（僅限港鐵）","sta":"港鐵上車站代碼（僅限港鐵）","co":"KMB 或 CTB（僅限巴士）"}]}]}
 
+【資料可信度規則】
+- 交通消息、天氣及行車時間顯示器只可作為即時背景，不可據此捏造不存在的巴士班次或渡輪班次。
+- 路線名稱、方向、車站及轉乘必須與香港現有公共交通網絡一致；不確定時寧願省略該方案，或在 note 清楚標示「資料未能核實」。
+- 優先選擇有官方資料支持的港鐵、九巴、城巴及運輸署渡輪；專綫小巴只能在確實知道路線與上落客位置時使用。
+- totalMins 必須約等於所有 legs 的 mins 總和；mins 要包括步行、等車、轉乘及預留的路況時間，不可只填車程。
+
 【代碼對接規則】
 - mode 為 mtr 時，line 與 sta 只可填寫下列有效港鐵代碼：
 ${lines}
@@ -243,8 +297,9 @@ ${lines}
 - mode 為 ferry 或 walk 時，不要填寫 line、sta 或 co。
 
 現時實時資訊：
-天氣：${w}
-特別交通消息：${n || "暫無"}`;
+天氣：${w || "暫無"}
+特別交通消息：${n || "暫無"}
+行車時間顯示器（僅供估算路面延誤）：${jt || "暫無"}`;
 
       let res: Response;
       try {
