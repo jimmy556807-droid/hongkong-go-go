@@ -15,6 +15,12 @@ export type Leg = {
   live?: string;
 };
 
+export type WebSource = {
+  title: string;
+  url: string;
+  snippet: string;
+};
+
 export type Plan = {
   title: string;
   totalMins: number;
@@ -23,6 +29,7 @@ export type Plan = {
   legs: Leg[];
   tip: string;
   weatherNote: string;
+  sources?: WebSource[];
 };
 
 const Input = z.object({
@@ -185,6 +192,33 @@ async function geocode(place: string): Promise<GeoPlace | null> {
   return null;
 }
 
+async function webSearch(from: string, to: string): Promise<WebSource[]> {
+  const queries = [
+    `${from} 到 ${to} 公共交通 路線 香港`,
+    `${from} ${to} 港鐵 巴士 渡輪 交通消息`,
+  ];
+  const sources: WebSource[] = [];
+  for (const query of queries) {
+    try {
+      const response = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
+        headers: { "user-agent": "HongKongGoGo/1.0 (route research)" },
+      });
+      if (!response.ok) continue;
+      const html = await response.text();
+      const matches = [...html.matchAll(/<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi)];
+      for (const match of matches.slice(0, 5)) {
+        const url = match[1]?.replace(/&amp;/g, "&");
+        const title = match[2]?.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").trim();
+        if (!url || !title || sources.some((source) => source.url === url)) continue;
+        sources.push({ title, url, snippet: "網上搜尋結果，請以官方即時資料及現場資訊核實。" });
+      }
+    } catch {
+      // 搜尋服務不可用時仍可使用官方交通資料規劃。
+    }
+  }
+  return sources.slice(0, 8);
+}
+
 async function journeyTimes() {
   try {
     const response = await fetch("https://resource.data.one.gov.hk/td/jss/Journeytimev2.xml");
@@ -251,13 +285,19 @@ export const planTrip = createServerFn({ method: "POST" })
         geocode(data.from),
         geocode(data.to),
       ]).catch(() => [null, null]);
-      const [n, w, jt] = await Promise.all([news(), weather(), journeyTimes()]);
+      const [n, w, jt, webSources] = await Promise.all([
+        news(),
+        weather(),
+        journeyTimes(),
+        webSearch(data.from, data.to),
+      ]);
       const lines = LINES.map(
         (l) => `${l.name}(${l.code}): ${l.stations.map((s) => `${STATIONS[s]}=${s}`).join(" ")}`,
       ).join("\n");
 
-      const sys = `你是香港本土交通出行規劃專家，精通全港港鐵、九巴、城巴、渡輪及專綫小巴網絡。
-你必須站在香港本地人真實出行的角度，為用戶推薦最貼地、門對門最快最方便的路線。
+      const sys = `你是香港本土交通出行研究 AI，會先分析網上搜尋結果，再結合官方即時資料，為用戶提供可核實的公共交通路線。
+你精通全港港鐵、九巴、城巴、渡輪及專綫小巴網絡，必須以香港本地人真實出行角度回答。
+網上搜尋結果不是保證正確的班次資料；只可用來發現可能的路線，路線、站名、方向及交通工具必須與官方資料一致。不可將搜尋摘要當成即時班次。
 
 【用戶行程需求】
 - 出發地：${data.from}
@@ -282,7 +322,7 @@ export const planTrip = createServerFn({ method: "POST" })
 
 【輸出格式】
 必須只輸出有效 JSON，不可有 Markdown，格式如下：
-{"plans":[{"title":"方案名稱","totalMins":42,"fare":"約 $11.1","tags":["特快直達","無需轉乘"],"tip":"實用搭車貼士","weatherNote":"因應天氣點解揀呢條路線","legs":[{"mode":"walk|bus|mtr|ferry","name":"路線名稱","from":"上車站／出發地名","to":"落車站／目的地名","mins":35,"note":"簡短說明","line":"港鐵路綫代碼（僅限港鐵）","sta":"港鐵上車站代碼（僅限港鐵）","co":"KMB 或 CTB（僅限巴士）"}]}]}
+{"plans":[{"title":"方案名稱","totalMins":42,"fare":"約 $11.1","tags":["特快直達","無需轉乘"],"tip":"實用搭車貼士","weatherNote":"因應天氣點解揀呢條路線","sources":[{"title":"來源標題","url":"https://example.com","snippet":"來源如何支持此路線"}],"legs":[{"mode":"walk|bus|mtr|ferry","name":"路線名稱","from":"上車站／出發地名","to":"落車站／目的地名","mins":35,"note":"簡短說明","line":"港鐵路綫代碼（僅限港鐵）","sta":"港鐵上車站代碼（僅限港鐵）","co":"KMB 或 CTB（僅限巴士）"}]}]}
 
 【資料可信度規則】
 - 交通消息、天氣及行車時間顯示器只可作為即時背景，不可據此捏造不存在的巴士班次或渡輪班次。
@@ -295,6 +335,9 @@ export const planTrip = createServerFn({ method: "POST" })
 ${lines}
 - mode 為 bus 時，name 必須以「巴士 <路線號>」表示，co 必須填 KMB 或 CTB。
 - mode 為 ferry 或 walk 時，不要填寫 line、sta 或 co。
+
+【網上搜尋結果】
+${webSources.length ? webSources.map((source, index) => `${index + 1}. ${source.title}\nURL: ${source.url}\n${source.snippet}`).join("\n") : "暫時未取得搜尋結果，必須只使用官方資料及已知交通網絡。"}
 
 現時實時資訊：
 天氣：${w || "暫無"}
@@ -350,6 +393,11 @@ ${lines}
         tags: (p?.tags ?? []).slice(0, 3).map(String),
         tip: String(p?.tip ?? ""),
         weatherNote: String(p?.weatherNote ?? ""),
+        sources: (p?.sources ?? []).slice(0, 4).map((source: any) => ({
+          title: String(source?.title ?? "網上資料"),
+          url: String(source?.url ?? ""),
+          snippet: String(source?.snippet ?? ""),
+        })).filter((source: WebSource) => /^https?:\/\//.test(source.url)),
         legs: (p?.legs ?? []).slice(0, 8).map((l: any) => ({
           mode: (["mtr", "bus", "ferry", "walk"].includes(l?.mode)
             ? l.mode

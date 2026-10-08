@@ -157,10 +157,10 @@ function Planner() {
     <section className="mx-5 mt-4 rounded-2xl border bg-card p-4">
       <h2 className="flex items-center gap-2 font-semibold">
         <Sparkles size={18} className="text-primary" />
-        智能行程規劃
+        網上 AI 路線搜尋
       </h2>
       <p className="mt-1 text-xs text-muted-foreground">
-        輸入出發地同目的地，AI 按現時天氣同交通推薦最適合路線。
+        AI 會搜尋網上交通資料，再綜合天氣、交通消息、行車時間、港鐵、巴士及渡輪規劃路線。
       </p>
 
       <div className="relative mt-3 rounded-xl border bg-background">
@@ -337,6 +337,26 @@ function Planner() {
               <Lightbulb size={13} className="mt-0.5 shrink-0" />
               {p.tip}
             </p>
+          )}
+          {!!p.sources?.length && (
+            <div className="mt-3 rounded-lg border bg-card p-2.5">
+              <p className="text-xs font-semibold text-muted-foreground">網上參考來源</p>
+              <ul className="mt-1.5 space-y-1">
+                {p.sources.map((source) => (
+                  <li key={source.url} className="text-xs">
+                    <a
+                      href={source.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-medium text-primary underline-offset-2 hover:underline"
+                    >
+                      {source.title}
+                    </a>
+                    {source.snippet && <span className="ml-1 text-muted-foreground">— {source.snippet}</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
           <p className="mt-2 text-center text-xs text-muted-foreground">
             建議由 AI 生成，實際班次及車資以官方公布為準。
