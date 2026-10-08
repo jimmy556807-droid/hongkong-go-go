@@ -276,7 +276,7 @@ export const planTrip = createServerFn({ method: "POST" })
       plans: Plan[];
       error?: string;
       weather?: string;
-      locations?: { from: GeoPlace; to: GeoPlace };
+      locations?: { from?: GeoPlace; to?: GeoPlace };
     }> => {
       const key = process.env["DEEPSEEK_API_KEY"];
       if (!key) return { plans: [], error: "未設定 DeepSeek 金鑰，請先在設定加入。" };
@@ -303,7 +303,8 @@ export const planTrip = createServerFn({ method: "POST" })
 - 出發地：${data.from}
 - 目的地：${data.to}
 - 出發地解析：${fromLocation ? `${fromLocation.displayName} (${fromLocation.lat}, ${fromLocation.lng})` : "未能可靠解析，必須降低信心並避免虛構附近車站"}
-- 目的地解析：${toLocation ? `${toLocation.displayName} (${toLocation.lat}, ${toLocation.lng})` : "未能可靠解析，必須降低信心並避免虛構附近車站"}
+- 目的地解析：${toLocation ? `${toLocation.displayName} (${toLocation.lat}, ${toLocation.lng})` : "未能可靠解析，必須降低信心並避免虛構附近車站；如無法確認終點，優先要求用戶提供更完整地址"}
+- 地理位置使用規則：先以解析後的 displayName、緯度及經度確認兩端實際位置，再選擇最近的港鐵站、巴士站、渡輪碼頭或步行接駁；不得只憑相似地名猜測路線。若只有一端成功解析，仍可規劃但必須明確標示另一端為估算。
 
 【核心規劃原則】
 1. 嚴禁盲目推薦多次轉乘港鐵：凡出發地或目的地非地鐵上蓋、或港鐵需要轉乘 2 次或以上時，若路面有「公路/隧道直達特快巴士」，必須優先推薦直達特快為第一方案！
@@ -429,8 +430,8 @@ ${webSources.length ? webSources.map((source, index) => `${index + 1}. ${source.
       return {
         plans,
         weather: w,
-        ...(fromLocation && toLocation
-          ? { locations: { from: fromLocation, to: toLocation } }
+        ...(fromLocation || toLocation
+          ? { locations: { ...(fromLocation ? { from: fromLocation } : {}), ...(toLocation ? { to: toLocation } : {}) } }
           : {}),
       };
     },
