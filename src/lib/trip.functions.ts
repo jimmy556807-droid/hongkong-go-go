@@ -498,7 +498,7 @@ ${webSources.length ? webSources.map((source, index) => `${index + 1}. ${source.
           method: "POST",
           headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
           body: JSON.stringify({
-            model: "deepseek-chat",
+            model: "deepseek-flash",
             stream: true,
             temperature: 0.3,
             response_format: { type: "json_object" },
@@ -506,7 +506,7 @@ ${webSources.length ? webSources.map((source, index) => `${index + 1}. ${source.
               { role: "system", content: sys },
               {
                 role: "user",
-                content: `��「${data.from}」去「${data.to}」。地理編碼座標：出發點 (${fromLocation?.lat ?? "未能解析"}, ${fromLocation?.lng ?? "未能解析"})，終點 (${toLocation?.lat ?? "未能解析"}, ${toLocation?.lng ?? "未能解析"})。請根據可用座標、地點名稱、現時交通消息、天氣及各交通工具的可用性推薦最適合嘅路線。現在時間：${new Date().toLocaleString("zh-HK", { timeZone: "Asia/Hong_Kong" })}`,
+                content: `由「${data.from}」去「${data.to}」。地理編碼座標：出發點 (${fromLocation?.lat ?? "未能解析"}, ${fromLocation?.lng ?? "未能解析"})，終點 (${toLocation?.lat ?? "未能解析"}, ${toLocation?.lng ?? "未能解析"})。請根據可用座標、地點名稱、現時交通消息、天氣及各交通工具的可用性推薦最適合嘅路線。現在時間：${new Date().toLocaleString("zh-HK", { timeZone: "Asia/Hong_Kong" })}`,
               },
             ],
           }),
