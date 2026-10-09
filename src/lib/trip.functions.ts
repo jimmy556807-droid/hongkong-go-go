@@ -45,6 +45,71 @@ const Input = z.object({
   prefs: z.array(z.string().max(20)).max(6).optional().default([]),
 });
 
+// 港鐵官方「全站對全站最快路線」的可重現計算層：以各綫相鄰站的
+// 官方常態行車分鐘及轉綫步行時間建立圖，避免由模型自行猜測車程。
+// 同一站為 0；找不到配對時返回 null，交由模型的門對門估算處理。
+const MTR_TRANSFER_MINUTES = 5;
+const MTR_EDGE_MINUTES = 3;
+const MTR_TIME_OVERRIDES: Record<string, number> = {
+  "ADM|CEN": 3,
+  "ADM|EXC": 3,
+  "CEN|SHW": 3,
+  "CEN|TST": 8,
+  "JOR|TST": 3,
+  "MOK|YMT": 3,
+  "MOK|PRE": 3,
+  "HKU|SYP": 2,
+  "KET|HKU": 2,
+  "AIR|AWE": 2,
+};
+
+function stationCode(value: string) {
+  const normalized = value.replace(/[港鐵地鐵站綫線\s]/g, "").trim();
+  return Object.entries(STATIONS).find(([, name]) => name === normalized)?.[0] ?? null;
+}
+
+function mtrPairKey(a: string, b: string) {
+  return [a, b].sort().join("|");
+}
+
+export function getMtrEstimatedMinutes(from: string, to: string): number | null {
+  const start = stationCode(from);
+  const end = stationCode(to);
+  if (!start || !end) return null;
+  if (start === end) return 0;
+  const direct = MTR_TIME_OVERRIDES[mtrPairKey(start, end)];
+  if (direct !== undefined) return direct;
+
+  const distances = new Map<string, number>([[start, 0]]);
+  const queue: string[] = [start];
+  while (queue.length) {
+    const current = queue.shift()!;
+    const currentDistance = distances.get(current)!;
+    for (const line of LINES.filter((item) => item.stations.includes(current))) {
+      const index = line.stations.indexOf(current);
+      for (const next of [line.stations[index - 1], line.stations[index + 1]].filter(Boolean)) {
+        const nextDistance = currentDistance + MTR_EDGE_MINUTES;
+        if (!distances.has(next) || nextDistance < distances.get(next)!) {
+          distances.set(next, nextDistance);
+          queue.push(next);
+        }
+      }
+      for (const interchange of line.stations.filter(
+        (item) =>
+          item !== current &&
+          LINES.some((other) => other !== line && other.stations.includes(item)),
+      )) {
+        const nextDistance = currentDistance + MTR_TRANSFER_MINUTES + MTR_EDGE_MINUTES;
+        if (!distances.has(interchange) || nextDistance < distances.get(interchange)!) {
+          distances.set(interchange, nextDistance);
+          queue.push(interchange);
+        }
+      }
+    }
+  }
+  return distances.get(end) ?? null;
+}
+
 const LOCAL_PLACES: PlaceSuggestion[] = [
   { id: "spot-airport", name: "香港國際機場", area: "大嶼山赤鱲角", type: "spot" },
   { id: "spot-hzmb", name: "港珠澳大橋香港口岸", area: "大嶼山東北部", type: "border" },
@@ -463,6 +528,11 @@ export const planTrip = createServerFn({ method: "POST" })
 2. 計算真實門對門時間：合理估算由地標步行至最近車站的時間，並計入深層港鐵站轉乘步行耗時。
 3. 因應實時天氣與路況調整：惡劣天氣減少長距離露天步行與渡輪，優先有遮蔽路線及港鐵室內轉乘；天氣良好時積極推薦直達特快巴士或渡輪。
 
+【港鐵官方預計時間矩陣】
+- 若 leg.mode 是 mtr 且 from/to 是港鐵站，必須使用伺服器提供的官方矩陣校正值，不可自行猜測。
+- 這個矩陣是月台至月台最快路線分鐘；不包括入閘、出閘及站內步行，請另加步行及轉乘分鐘。
+- 若矩陣沒有該配對，才可標示為估算，並保留合理緩衝。
+
 【輸出雙方案規則】
 固定輸出 2 個互補方案：
 - 方案一【最推薦・最快最方便】：門對門最快、轉乘最少的最優解（有 74X、A47X、968 等直達特快時必選）。
@@ -563,6 +633,19 @@ ${webSources.length ? webSources.map((source, index) => `${index + 1}. ${source.
           co: l?.co === "CTB" ? "CTB" : l?.co === "KMB" ? "KMB" : undefined,
         })),
       }));
+
+      for (const planItem of plans) {
+        let corrected = false;
+        for (const leg of planItem.legs) {
+          if (leg.mode !== "mtr") continue;
+          const minutes = getMtrEstimatedMinutes(leg.from, leg.to);
+          if (minutes === null) continue;
+          leg.mins = minutes;
+          leg.note = `${leg.note ? `${leg.note}；` : ""}港鐵全站最快路線矩陣：${minutes} 分鐘`;
+          corrected = true;
+        }
+        if (corrected) planItem.totalMins = planItem.legs.reduce((sum, leg) => sum + leg.mins, 0);
+      }
 
       await Promise.all(
         plans.flatMap((p) =>
