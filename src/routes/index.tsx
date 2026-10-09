@@ -214,12 +214,8 @@ function Planner() {
     <section ref={plannerRef} className="mx-5 mt-4 rounded-2xl border bg-card p-4">
       <h2 className="flex items-center gap-2 font-semibold">
         <Sparkles size={18} className="text-primary" />
-        網上 AI 路線搜尋
+        路線搜尋
       </h2>
-      <p className="mt-1 text-xs text-muted-foreground">
-        AI 會搜尋網上交通資料，再綜合天氣、交通消息、行車時間、港鐵、巴士及渡輪規劃路線。
-      </p>
-
       <div className="relative mt-3 rounded-xl border bg-background">
         <div className="flex items-center gap-2 px-3">
           <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-primary" />
@@ -237,7 +233,7 @@ function Planner() {
               setFocusedField("from");
             }}
             aria-label="出發地"
-            placeholder={status === "loading" ? "正在取得目前位置…" : "輸入出發地，例如：Wilmax England Office"}
+            placeholder={status === "loading" ? "正在取得目前位置…" : "輸入您的出發地"}
             className="w-full bg-transparent py-3 pr-10 text-sm outline-none"
           />
         </div>
@@ -278,7 +274,7 @@ function Planner() {
                 setFocusedField(null);
               }
             }}
-            placeholder="輸入目的地，例如：Wilmax England Office、沙田"
+            placeholder="輸入您的目的地"
             className="w-full bg-transparent py-3 pr-10 text-sm outline-none"
           />
         </div>
@@ -367,7 +363,7 @@ function Planner() {
             </>
           ) : (
             <>
-              一���出發
+              一鍵出發
               <ArrowRight size={18} />
             </>
           )}
@@ -413,7 +409,7 @@ function Planner() {
               className={`flex items-center justify-center gap-1 rounded-lg py-2 text-xs font-semibold ${p === x ? "bg-card text-primary shadow-sm" : "text-muted-foreground"}`}
             >
               {i === 0 ? <Sparkles size={13} /> : <Bus size={13} />}
-              {i === 0 ? "最平最快" : "巴士路線"}
+              {i === 0 ? "路線1" : "路線2"}
               <span className="font-normal">· {x.totalMins} 分</span>
             </button>
           ))}
@@ -423,7 +419,7 @@ function Planner() {
       {p && (
         <article className="mt-3 rounded-xl border border-primary/40 bg-primary/5 p-3">
           <h3 className="text-sm font-bold">
-            {p === plans[0] ? "最平最快・" : "巴士路線・"}
+            {p === plans[0] ? "路線1・" : "路線2・"}
             {p.title}
           </h3>
           {m.data?.locations && (
@@ -511,9 +507,6 @@ function Planner() {
               </ul>
             </div>
           )}
-          <p className="mt-2 text-center text-xs text-muted-foreground">
-            建議由 AI 生成，實際班次及車資以官方公布為準。
-          </p>
         </article>
       )}
     </section>
@@ -576,7 +569,7 @@ function Index() {
             最新交通消息
           </h2>
           <Link to="/news" className="text-sm text-primary">
-            ���部
+           全部
           </Link>
         </div>
         {n.isLoading && <p className="text-sm text-muted-foreground">載入中…</p>}
