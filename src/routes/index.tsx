@@ -12,6 +12,7 @@ import {
   Sparkles,
   Footprints,
   ArrowRight,
+  ArrowUpDown,
   Clock,
   Wallet,
   Lightbulb,
@@ -140,15 +141,20 @@ function LegRow({ leg }: { leg: Leg }) {
 
 function Planner() {
   const { position, status, placeName } = useCurrentLocation();
+  const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
-  const from = placeName ?? (position ? "目前位置" : "");
-  const geocodableFrom = placeName ?? (position ? `${position.lat}, ${position.lng}` : "");
+  const [isComposing, setIsComposing] = useState(false);
+  const geocodableFrom = from.trim() || (position ? `${position.lat}, ${position.lng}` : "");
   const { favs, save, remove } = useFavs();
   const plan = useServerFn(planTrip);
   const search = useServerFn(searchPlaces);
   const [focusedField, setFocusedField] = useState<"from" | "to" | null>(null);
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const plannerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!from.trim() && placeName) setFrom(placeName);
+  }, [from, placeName]);
+
   const m = useMutation({
     mutationFn: () => plan({ data: { from: geocodableFrom.trim(), to: to.trim() } }),
   });
@@ -160,6 +166,11 @@ function Planner() {
   });
   const running = m.isPending && m.submittedAt > 0;
   const ready = !!(geocodableFrom.trim() && to.trim());
+  const swapPlaces = () => {
+    setFrom(to);
+    setTo(from);
+    setFocusedField(null);
+  };
   const [idx, setIdx] = useState(0);
   const plans = m.data?.plans ?? [];
   const p = plans[Math.min(idx, Math.max(plans.length - 1, 0))];
@@ -175,11 +186,14 @@ function Planner() {
 
   useEffect(() => {
     const timer = window.setTimeout(
-      () => setDebouncedQuery(focusedField === "to" ? to.trim() : ""),
+      () =>
+        setDebouncedQuery(
+          focusedField === "from" ? from.trim() : focusedField === "to" ? to.trim() : "",
+        ),
       250,
     );
     return () => window.clearTimeout(timer);
-  }, [to, focusedField]);
+  }, [from, to, focusedField]);
 
   useEffect(() => {
     const onPointerDown = (event: PointerEvent) => {
@@ -211,30 +225,56 @@ function Planner() {
           <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-primary" />
           <input
             value={from}
-            readOnly
-            aria-label="目前定位出發地"
-            placeholder={status === "loading" ? "正在取得目前位置…" : "請允許定位以設定出發地"}
+            onFocus={() => setFocusedField("from")}
+            onCompositionStart={() => setIsComposing(true)}
+            onCompositionEnd={(event) => {
+              setIsComposing(false);
+              setFrom(event.currentTarget.value);
+              setFocusedField("from");
+            }}
+            onChange={(event) => {
+              setFrom(event.target.value);
+              setFocusedField("from");
+            }}
+            aria-label="出發地"
+            placeholder={status === "loading" ? "正在取得目前位置…" : "輸入出發地，例如：Wilmax England Office"}
             className="w-full bg-transparent py-3 pr-10 text-sm outline-none"
           />
         </div>
+        <button
+          type="button"
+          onClick={swapPlaces}
+          aria-label="交換出發地和目的地"
+          className="absolute right-3 top-1/2 z-10 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full border bg-card text-primary shadow-sm"
+        >
+          <ArrowUpDown size={14} />
+        </button>
         <div className="mx-3 border-t" />
         <div className="flex items-center gap-2 px-3">
           <MapPin size={12} className="shrink-0 text-destructive" />
           <input
             value={to}
             onFocus={() => setFocusedField("to")}
-            onChange={(e) => {
-              setTo(e.target.value);
+            onCompositionStart={() => setIsComposing(true)}
+            onCompositionEnd={(event) => {
+              setIsComposing(false);
+              setTo(event.currentTarget.value);
+              setFocusedField("to");
+            }}
+            onChange={(event) => {
+              setTo(event.target.value);
               setFocusedField("to");
             }}
             onKeyDown={(event) => {
               if (
                 event.key === "Enter" &&
+                !isComposing &&
                 !event.nativeEvent.isComposing &&
                 event.keyCode !== 229 &&
                 suggestions[0]
               ) {
-                setTo(suggestions[0].name);
+                if (focusedField === "from") setFrom(suggestions[0].name);
+                else setTo(suggestions[0].name);
                 setFocusedField(null);
               }
             }}
@@ -242,17 +282,17 @@ function Planner() {
             className="w-full bg-transparent py-3 pr-10 text-sm outline-none"
           />
         </div>
-        {focusedField === "to" && to.trim() && (
+        {focusedField && debouncedQuery && (
           <div
             role="listbox"
-            aria-label="目的地搜尋結果"
+            aria-label={`${focusedField === "from" ? "出發地" : "目的地"}搜尋結果`}
             className="absolute inset-x-2 top-full z-50 mt-2 max-h-64 overflow-y-auto rounded-2xl border bg-card p-1.5 shadow-xl shadow-black/20"
           >
             {placeQuery.isFetching && (
               <p className="px-3 py-3 text-xs text-muted-foreground">搜尋香港地點中…</p>
             )}
             {!placeQuery.isFetching && suggestions.length === 0 && (
-              <p className="px-3 py-3 text-xs text-muted-foreground">未找到相符香港地點</p>
+              <p className="px-3 py-3 text-xs leading-5 text-muted-foreground">未列出此地點？無須擔心，直接點擊「一鍵出發」，AI 會為你智能規劃！</p>
             )}
             {!placeQuery.isFetching &&
               suggestions.map((place) => {
@@ -264,7 +304,8 @@ function Planner() {
                     role="option"
                     onMouseDown={(event) => event.preventDefault()}
                     onClick={() => {
-                      setTo(place.name);
+                      if (focusedField === "from") setFrom(place.name);
+                      else setTo(place.name);
                       setFocusedField(null);
                     }}
                     className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-primary/10"

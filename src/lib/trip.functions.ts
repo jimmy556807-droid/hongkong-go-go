@@ -55,6 +55,24 @@ const LOCAL_PLACES: PlaceSuggestion[] = [
   { id: "spot-apm", name: "apm", area: "觀塘道418號，觀塘", type: "building" },
   { id: "spot-langham", name: "朗豪坊", area: "旺角亞皆老街8號", type: "building" },
   { id: "spot-wilmax", name: "Wilmax England Office", area: "香港", type: "building" },
+  { id: "spot-harbour-city", name: "海港城", area: "尖沙咀廣東道", type: "building" },
+  { id: "spot-times-square", name: "時代廣場", area: "銅鑼灣勿地臣街", type: "building" },
+  { id: "spot-festival-walk", name: "又一城", area: "九龍塘達之路", type: "building" },
+  { id: "spot-new-town-plaza", name: "新城市廣場", area: "沙田沙田正街", type: "building" },
+  { id: "spot-langham-place", name: "Langham Place", area: "旺角亞皆老街", type: "building" },
+  { id: "spot-megabox", name: "MegaBox", area: "九龍灣宏照道", type: "building" },
+  { id: "spot-the-wai", name: "圍方", area: "大圍車公廟路", type: "building" },
+  { id: "spot-airside", name: "AIRSIDE", area: "啟德協調道", type: "building" },
+  { id: "spot-yoho", name: "Yoho Mall", area: "元朗朗日路", type: "building" },
+  { id: "spot-central-piers", name: "中環碼頭", area: "中環民光街", type: "spot" },
+  { id: "spot-star-ferry", name: "尖沙咀天星碼頭", area: "尖沙咀梳士巴利道", type: "spot" },
+  { id: "spot-lo-wu", name: "羅湖口岸", area: "上水羅湖", type: "border" },
+  { id: "spot-lok-ma-chau", name: "落馬洲口岸", area: "元朗落馬洲", type: "border" },
+  { id: "spot-mary", name: "瑪麗醫院", area: "薄扶林道", type: "spot" },
+  { id: "spot-polyu", name: "香港理工大學", area: "紅磡理工道", type: "spot" },
+  { id: "spot-hku", name: "香港大學", area: "薄扶林道", type: "spot" },
+  { id: "spot-cuhk", name: "香港中文大學", area: "沙田馬料水", type: "spot" },
+  { id: "spot-ocean-park", name: "海洋公園", area: "香港仔黃竹坑道", type: "spot" },
 ];
 
 const normalizePlaceQuery = (value: string) =>
@@ -80,24 +98,45 @@ function localPlaceSearch(query: string) {
   );
 }
 
-function parseAlsResults(xml: string): PlaceSuggestion[] {
-  return [...xml.matchAll(/<Address>([\s\S]*?)<\/Address>/gi)]
-    .map((match, index) => {
-      const block = match[1] ?? "";
-      const value = (tag: string) =>
-        block
-          .match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i"))?.[1]
-          ?.replace(/<!\[CDATA\[|\]\]>/g, "")
-          .trim() ?? "";
-      const name = value("BuildingName") || value("PremisesAddress") || value("AddressLine");
-      const area = [value("District"), value("StreetName"), value("Region")]
+type AlsAddress = {
+  Address?: {
+    PremisesAddress?: {
+      ChiPremisesAddress?: {
+        Region?: string;
+        ChiDistrict?: { DcDistrict?: string };
+        ChiStreet?: { StreetName?: string; BuildingNoFrom?: string };
+        ChiEstate?: { EstateName?: string };
+        BuildingName?: string;
+      };
+      GeospatialInformation?: { Latitude?: string; Longitude?: string };
+    };
+  };
+  ValidationInformation?: { Score?: number };
+};
+
+function parseAlsResults(payload: unknown): PlaceSuggestion[] {
+  const records = (payload as { SuggestedAddress?: AlsAddress[] })?.SuggestedAddress ?? [];
+  return records
+    .map((record, index) => {
+      const address = record.Address?.PremisesAddress?.ChiPremisesAddress;
+      const street = address?.ChiStreet;
+      const building = address?.BuildingName || address?.ChiEstate?.EstateName || "";
+      const streetLine = [street?.StreetName, street?.BuildingNoFrom].filter(Boolean).join(" ");
+      const name = building || streetLine || address?.Region || "";
+      const area = [address?.ChiDistrict?.DcDistrict, streetLine, address?.Region]
         .filter(Boolean)
         .join("、");
+      const lower = `${name}${area}`.toLowerCase();
+      const type = /口岸|管制站|邊境|boundary|port/.test(lower)
+        ? "border"
+        : /商場|中心|大廈|屋邨|廣場|mall|plaza|building|estate/.test(lower)
+          ? "building"
+          : "spot";
       return {
         id: `als-${index}-${encodeURIComponent(name)}`,
         name,
         area: area || "香港",
-        type: "building" as const,
+        type: type as PlaceSuggestion["type"],
       };
     })
     .filter((place) => place.name);
@@ -112,13 +151,16 @@ export const searchPlaces = createServerFn({ method: "GET" })
     if (local.length >= 6) return local;
     try {
       const response = await fetch(
-        `https://www.als.ogcio.gov.hk/lookup?q=${encodeURIComponent(data.query)}&n=6`,
+        `https://www.als.gov.hk/lookup?q=${encodeURIComponent(data.query)}&n=6&t=20`,
         {
-          headers: { accept: "application/xml, text/xml" },
+          headers: {
+            accept: "application/json",
+            "accept-language": "zh-Hant",
+          },
         },
       );
       if (!response.ok) return local;
-      const remote = parseAlsResults(await response.text());
+      const remote = parseAlsResults(await response.json());
       return [...local, ...remote]
         .filter((place, index, all) => all.findIndex((item) => item.name === place.name) === index)
         .slice(0, 6);
@@ -412,9 +454,9 @@ export const planTrip = createServerFn({ method: "POST" })
 - 地理位置使用規則：先以解析後的 displayName、緯度及經度確認兩端實際位置，再選擇最近的港鐵站、巴士站、渡輪碼頭或步行接駁；不得只憑相似地名猜測路線。若只有一端成功解析，仍可規劃但必須明確標示另一端為估算。
 
 【核心規劃原則】
-1. 嚴禁盲目推薦多次轉乘港鐵：凡出發地或目的地非地鐵上蓋、或港鐵需要轉乘 2 次或以上時，若路面有「公路/隧道直達特快巴士」，必須優先推薦直達特快為第一方案！
+1. 嚴禁盲目推薦多次轉乘港鐵：凡出發地或目的地非地鐵上蓋、或港鐵���要轉乘 2 次或以上時，若路面有「公路/隧道直達特快巴士」，必須優先推薦直達特快為第一方案！
    - 新界東 ↔ 九龍東：大埔/廣福道 ↔ 觀塘/apm 優先推薦 74X；沙田 ↔ 觀塘優先 89X/89D 等。
-   - 新界東/其他區 ↔ 港珠澳口岸/機場：大埔 ↔ 港珠澳大橋旅檢大樓/機場優先推薦 A47X；其他區優先推薦對應 A 線。
+   - 新界東/其他區 ↔ 港珠澳口岸/機場：大埔 ↔ 港珠澳大橋旅檢��樓/機場優先推薦 A47X；其他區優先推薦對應 A 線。
    - 新界西 ↔ 港島：元朗/屯門 ↔ 中上環/灣仔優先推薦 968、960 等。
    - 維港兩岸：中環碼頭 ↔ 尖沙咀碼頭優先推薦天星小輪。
    - 陸路口岸：香園圍（B7/B8）、深圳灣（B2/B3/B3X）、港珠澳（A線/B6）。
