@@ -170,10 +170,9 @@ async function geocode(place: string): Promise<GeoPlace | null> {
   }
 
   const queries = [
-    input,
     `${input}, Hong Kong`,
     input.includes("香港") ? input : `${input}, 香港`,
-    input.replace(/(港鐵|地鐵)站/g, "站"),
+    `${input.replace(/(港鐵|地鐵)站/g, "站")}, Hong Kong`,
   ].filter((query, index, all) => query && all.indexOf(query) === index);
 
   for (const query of queries) {
@@ -181,7 +180,7 @@ async function geocode(place: string): Promise<GeoPlace | null> {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 5000);
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=zh-Hant,zh-TW,en&addressdetails=1&q=${encodeURIComponent(query)}`,
+        `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&bounded=1&viewbox=113.7,22.1,114.5,22.6&accept-language=zh-Hant,zh-TW,en&addressdetails=1&q=${encodeURIComponent(query)}`,
         {
           signal: controller.signal,
           headers: { accept: "application/json", "user-agent": "HongKongGoGo/1.0 (trip planner)" },
