@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -20,9 +20,12 @@ import {
   Trash2,
   MapPin,
   CloudSun,
+  Building2,
+  Landmark,
+  ShieldCheck,
 } from "lucide-react";
 import { getNews, getWeather } from "@/lib/hk.functions";
-import { planTrip, type Leg } from "@/lib/trip.functions";
+import { planTrip, searchPlaces, type Leg, type PlaceSuggestion } from "@/lib/trip.functions";
 import { PageHeader, LocationButton, useCurrentLocation } from "@/components/BottomNav";
 import { FareSaverCard } from "@/components/FareSaverCard";
 
@@ -142,14 +145,48 @@ function Planner() {
   const geocodableFrom = placeName ?? (position ? `${position.lat}, ${position.lng}` : "");
   const { favs, save, remove } = useFavs();
   const plan = useServerFn(planTrip);
+  const search = useServerFn(searchPlaces);
+  const [focusedField, setFocusedField] = useState<"from" | "to" | null>(null);
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const plannerRef = useRef<HTMLDivElement>(null);
   const m = useMutation({ mutationFn: () => plan({ data: { from: geocodableFrom.trim(), to: to.trim() } }) });
+  const placeQuery = useQuery({
+    queryKey: ["place-suggestions", debouncedQuery],
+    queryFn: () => search({ data: { query: debouncedQuery } }),
+    enabled: debouncedQuery.length > 0,
+    staleTime: 60_000,
+  });
   const running = m.isPending && m.submittedAt > 0;
   const ready = !!(geocodableFrom.trim() && to.trim());
   const [idx, setIdx] = useState(0);
   const plans = m.data?.plans ?? [];
   const p = plans[Math.min(idx, Math.max(plans.length - 1, 0))];
+  const suggestions = placeQuery.data ?? [];
+  const iconForPlace = (type: PlaceSuggestion["type"]) =>
+    type === "mtr" ? TrainFront : type === "border" ? ShieldCheck : type === "building" ? Building2 : Landmark;
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedQuery(focusedField === "to" ? to.trim() : ""), 250);
+    return () => window.clearTimeout(timer);
+  }, [to, focusedField]);
+
+  useEffect(() => {
+    const onPointerDown = (event: PointerEvent) => {
+      if (!plannerRef.current?.contains(event.target as Node)) setFocusedField(null);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setFocusedField(null);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, []);
+
   return (
-    <section className="mx-5 mt-4 rounded-2xl border bg-card p-4">
+    <section ref={plannerRef} className="mx-5 mt-4 rounded-2xl border bg-card p-4">
       <h2 className="flex items-center gap-2 font-semibold">
         <Sparkles size={18} className="text-primary" />
         網上 AI 路線搜尋
@@ -174,12 +211,43 @@ function Planner() {
           <MapPin size={12} className="shrink-0 text-destructive" />
           <input
             value={to}
-            onChange={(e) => setTo(e.target.value)}
+            onFocus={() => setFocusedField("to")}
+            onChange={(e) => { setTo(e.target.value); setFocusedField("to"); }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.nativeEvent.isComposing && event.keyCode !== 229 && suggestions[0]) {
+                setTo(suggestions[0].name);
+                setFocusedField(null);
+              }
+            }}
             placeholder="輸入目的地，例如：Wilmax England Office、沙田"
             className="w-full bg-transparent py-3 pr-10 text-sm outline-none"
           />
         </div>
-
+        {focusedField === "to" && to.trim() && (
+          <div role="listbox" aria-label="目的地搜尋結果" className="absolute inset-x-2 top-full z-50 mt-2 max-h-64 overflow-y-auto rounded-2xl border bg-card p-1.5 shadow-xl shadow-black/20">
+            {placeQuery.isFetching && <p className="px-3 py-3 text-xs text-muted-foreground">搜尋香港地點中…</p>}
+            {!placeQuery.isFetching && suggestions.length === 0 && <p className="px-3 py-3 text-xs text-muted-foreground">未找到相符香港地點</p>}
+            {!placeQuery.isFetching && suggestions.map((place) => {
+              const Icon = iconForPlace(place.type);
+              return (
+                <button
+                  key={place.id}
+                  type="button"
+                  role="option"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => { setTo(place.name); setFocusedField(null); }}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-primary/10"
+                >
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary"><Icon size={16} /></span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-semibold">{place.name}</span>
+                    <span className="block truncate text-xs text-muted-foreground">{place.area}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div className="mt-2 flex flex-wrap gap-1.5">
@@ -218,7 +286,7 @@ function Planner() {
             </>
           ) : (
             <>
-              一鍵出發
+              一���出發
               <ArrowRight size={18} />
             </>
           )}
