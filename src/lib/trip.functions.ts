@@ -3874,6 +3874,7 @@ const MTR_TIME_OVERRIDES: Record<string, number> = {
   "NTK|KWH": 34,
   "NTK|TWH": 36,
   "NTK|TSW": 38,
+  "KWT|TAP": 38,
   "KWT|LAT": 3,
   "KWT|YAT": 5,
   "KWT|TIK": 8,
