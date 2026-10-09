@@ -21,6 +21,13 @@ export type WebSource = {
   snippet: string;
 };
 
+export type PlaceSuggestion = {
+  id: string;
+  name: string;
+  area: string;
+  type: "mtr" | "spot" | "building" | "border";
+};
+
 export type Plan = {
   title: string;
   totalMins: number;
@@ -37,6 +44,61 @@ const Input = z.object({
   to: z.string().min(1).max(60),
   prefs: z.array(z.string().max(20)).max(6).optional().default([]),
 });
+
+const LOCAL_PLACES: PlaceSuggestion[] = [
+  { id: "spot-airport", name: "香港國際機場", area: "大嶼山赤鱲角", type: "spot" },
+  { id: "spot-hzmb", name: "港珠澳大橋香港口岸", area: "大嶼山東北部", type: "border" },
+  { id: "spot-sz-bay", name: "深圳灣口岸", area: "元朗流浮山", type: "border" },
+  { id: "spot-heung-yuen-wai", name: "香園圍口岸", area: "北區打鼓嶺", type: "border" },
+  { id: "spot-west-kowloon", name: "西九龍高鐵站", area: "油尖旺區柯士甸道西", type: "spot" },
+  { id: "spot-disney", name: "香港迪士尼樂園", area: "大嶼山竹篙灣", type: "spot" },
+  { id: "spot-apm", name: "apm", area: "觀塘道418號，觀塘", type: "building" },
+  { id: "spot-langham", name: "朗豪坊", area: "旺角亞皆老街8號", type: "building" },
+  { id: "spot-wilmax", name: "Wilmax England Office", area: "香港", type: "building" },
+];
+
+const normalizePlaceQuery = (value: string) => value.toLowerCase().replace(/[香港地區、，,\s]/g, "");
+
+const LOCAL_SUGGESTIONS: PlaceSuggestion[] = Object.entries(STATIONS).map(([id, name]): PlaceSuggestion => ({
+  id: `mtr-${id}`,
+  name: `${name}站`,
+  area: "港鐵車站",
+  type: "mtr",
+})).concat(LOCAL_PLACES);
+
+function localPlaceSearch(query: string) {
+  const normalized = normalizePlaceQuery(query);
+  return LOCAL_SUGGESTIONS
+    .filter((place) => normalizePlaceQuery(`${place.name}${place.area}`).includes(normalized))
+    .sort((a, b) => normalizePlaceQuery(a.name).indexOf(normalized) - normalizePlaceQuery(b.name).indexOf(normalized));
+}
+
+function parseAlsResults(xml: string): PlaceSuggestion[] {
+  return [...xml.matchAll(/<Address>([\s\S]*?)<\/Address>/gi)].map((match, index) => {
+    const block = match[1] ?? "";
+    const value = (tag: string) => block.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i"))?.[1]?.replace(/<!\[CDATA\[|\]\]>/g, "").trim() ?? "";
+    const name = value("BuildingName") || value("PremisesAddress") || value("AddressLine");
+    const area = [value("District"), value("StreetName"), value("Region")].filter(Boolean).join("、");
+    return { id: `als-${index}-${encodeURIComponent(name)}`, name, area: area || "香港", type: "building" as const };
+  }).filter((place) => place.name);
+}
+
+export const searchPlaces = createServerFn({ method: "GET" })
+  .inputValidator((value: unknown) => z.object({ query: z.string().trim().min(1).max(80) }).parse(value))
+  .handler(async ({ data }): Promise<PlaceSuggestion[]> => {
+    const local = localPlaceSearch(data.query).slice(0, 6);
+    if (local.length >= 6) return local;
+    try {
+      const response = await fetch(`https://www.als.ogcio.gov.hk/lookup?q=${encodeURIComponent(data.query)}&n=6`, {
+        headers: { accept: "application/xml, text/xml" },
+      });
+      if (!response.ok) return local;
+      const remote = parseAlsResults(await response.text());
+      return [...local, ...remote].filter((place, index, all) => all.findIndex((item) => item.name === place.name) === index).slice(0, 6);
+    } catch {
+      return local;
+    }
+  });
 
 async function readStream(res: Response) {
   const reader = res.body!.getReader();
@@ -368,7 +430,7 @@ ${webSources.length ? webSources.map((source, index) => `${index + 1}. ${source.
               { role: "system", content: sys },
               {
                 role: "user",
-                content: `由「${data.from}」去「${data.to}」。地理編碼座標：出發點 (${fromLocation?.lat ?? "未能解析"}, ${fromLocation?.lng ?? "未能解析"})，終點 (${toLocation?.lat ?? "未能解析"}, ${toLocation?.lng ?? "未能解析"})。請根據可用座標、地點名稱、現時交通消息、天氣及各交通工具的可用性推薦最適合嘅路線。現在時間：${new Date().toLocaleString("zh-HK", { timeZone: "Asia/Hong_Kong" })}`,
+                content: `��「${data.from}」去「${data.to}」。地理編碼座標：出發點 (${fromLocation?.lat ?? "未能解析"}, ${fromLocation?.lng ?? "未能解析"})，終點 (${toLocation?.lat ?? "未能解析"}, ${toLocation?.lng ?? "未能解析"})。請根據可用座標、地點名稱、現時交通消息、天氣及各交通工具的可用性推薦最適合嘅路線。現在時間：${new Date().toLocaleString("zh-HK", { timeZone: "Asia/Hong_Kong" })}`,
               },
             ],
           }),
