@@ -149,7 +149,9 @@ function Planner() {
   const [focusedField, setFocusedField] = useState<"from" | "to" | null>(null);
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const plannerRef = useRef<HTMLDivElement>(null);
-  const m = useMutation({ mutationFn: () => plan({ data: { from: geocodableFrom.trim(), to: to.trim() } }) });
+  const m = useMutation({
+    mutationFn: () => plan({ data: { from: geocodableFrom.trim(), to: to.trim() } }),
+  });
   const placeQuery = useQuery({
     queryKey: ["place-suggestions", debouncedQuery],
     queryFn: () => search({ data: { query: debouncedQuery } }),
@@ -163,10 +165,19 @@ function Planner() {
   const p = plans[Math.min(idx, Math.max(plans.length - 1, 0))];
   const suggestions = placeQuery.data ?? [];
   const iconForPlace = (type: PlaceSuggestion["type"]) =>
-    type === "mtr" ? TrainFront : type === "border" ? ShieldCheck : type === "building" ? Building2 : Landmark;
+    type === "mtr"
+      ? TrainFront
+      : type === "border"
+        ? ShieldCheck
+        : type === "building"
+          ? Building2
+          : Landmark;
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedQuery(focusedField === "to" ? to.trim() : ""), 250);
+    const timer = window.setTimeout(
+      () => setDebouncedQuery(focusedField === "to" ? to.trim() : ""),
+      250,
+    );
     return () => window.clearTimeout(timer);
   }, [to, focusedField]);
 
@@ -212,9 +223,17 @@ function Planner() {
           <input
             value={to}
             onFocus={() => setFocusedField("to")}
-            onChange={(e) => { setTo(e.target.value); setFocusedField("to"); }}
+            onChange={(e) => {
+              setTo(e.target.value);
+              setFocusedField("to");
+            }}
             onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.nativeEvent.isComposing && event.keyCode !== 229 && suggestions[0]) {
+              if (
+                event.key === "Enter" &&
+                !event.nativeEvent.isComposing &&
+                event.keyCode !== 229 &&
+                suggestions[0]
+              ) {
                 setTo(suggestions[0].name);
                 setFocusedField(null);
               }
@@ -224,28 +243,44 @@ function Planner() {
           />
         </div>
         {focusedField === "to" && to.trim() && (
-          <div role="listbox" aria-label="目的地搜尋結果" className="absolute inset-x-2 top-full z-50 mt-2 max-h-64 overflow-y-auto rounded-2xl border bg-card p-1.5 shadow-xl shadow-black/20">
-            {placeQuery.isFetching && <p className="px-3 py-3 text-xs text-muted-foreground">搜尋香港地點中…</p>}
-            {!placeQuery.isFetching && suggestions.length === 0 && <p className="px-3 py-3 text-xs text-muted-foreground">未找到相符香港地點</p>}
-            {!placeQuery.isFetching && suggestions.map((place) => {
-              const Icon = iconForPlace(place.type);
-              return (
-                <button
-                  key={place.id}
-                  type="button"
-                  role="option"
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => { setTo(place.name); setFocusedField(null); }}
-                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-primary/10"
-                >
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary"><Icon size={16} /></span>
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-semibold">{place.name}</span>
-                    <span className="block truncate text-xs text-muted-foreground">{place.area}</span>
-                  </span>
-                </button>
-              );
-            })}
+          <div
+            role="listbox"
+            aria-label="目的地搜尋結果"
+            className="absolute inset-x-2 top-full z-50 mt-2 max-h-64 overflow-y-auto rounded-2xl border bg-card p-1.5 shadow-xl shadow-black/20"
+          >
+            {placeQuery.isFetching && (
+              <p className="px-3 py-3 text-xs text-muted-foreground">搜尋香港地點中…</p>
+            )}
+            {!placeQuery.isFetching && suggestions.length === 0 && (
+              <p className="px-3 py-3 text-xs text-muted-foreground">未找到相符香港地點</p>
+            )}
+            {!placeQuery.isFetching &&
+              suggestions.map((place) => {
+                const Icon = iconForPlace(place.type);
+                return (
+                  <button
+                    key={place.id}
+                    type="button"
+                    role="option"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => {
+                      setTo(place.name);
+                      setFocusedField(null);
+                    }}
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-primary/10"
+                  >
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+                      <Icon size={16} />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-semibold">{place.name}</span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {place.area}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
           </div>
         )}
       </div>
@@ -267,7 +302,9 @@ function Planner() {
         <button
           type="button"
           disabled={!ready}
-          onClick={() => save({ id: crypto.randomUUID(), from: from.trim(), to: to.trim(), prefs: [] })}
+          onClick={() =>
+            save({ id: crypto.randomUUID(), from: from.trim(), to: to.trim(), prefs: [] })
+          }
           aria-label="收藏行程"
           className="grid w-12 place-items-center rounded-xl border border-primary text-primary disabled:opacity-50"
         >
@@ -276,7 +313,10 @@ function Planner() {
         <button
           type="button"
           disabled={!ready || running}
-          onClick={() => { setIdx(0); m.mutate(); }}
+          onClick={() => {
+            setIdx(0);
+            m.mutate();
+          }}
           className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-base font-bold text-primary-foreground shadow-md shadow-primary/20 disabled:opacity-50"
         >
           {running ? (
@@ -341,15 +381,22 @@ function Planner() {
 
       {p && (
         <article className="mt-3 rounded-xl border border-primary/40 bg-primary/5 p-3">
-          <h3 className="text-sm font-bold">{p === plans[0] ? "最平最快・" : "巴士路線・"}{p.title}</h3>
+          <h3 className="text-sm font-bold">
+            {p === plans[0] ? "最平最快・" : "巴士路線・"}
+            {p.title}
+          </h3>
           {m.data?.locations && (
             <div className="mt-1 space-y-0.5 text-[11px] text-muted-foreground">
               {m.data.locations.from && <p>出發地：{m.data.locations.from.displayName}</p>}
               {m.data.locations.to && <p>目的地：{m.data.locations.to.displayName}</p>}
               <p>
-                {m.data.locations.from ? `${m.data.locations.from.lat.toFixed(5)}, ${m.data.locations.from.lng.toFixed(5)}` : "出發地未能定位"}
+                {m.data.locations.from
+                  ? `${m.data.locations.from.lat.toFixed(5)}, ${m.data.locations.from.lng.toFixed(5)}`
+                  : "出發地未能定位"}
                 {" → "}
-                {m.data.locations.to ? `${m.data.locations.to.lat.toFixed(5)}, ${m.data.locations.to.lng.toFixed(5)}` : "目的地未能定位"}
+                {m.data.locations.to
+                  ? `${m.data.locations.to.lat.toFixed(5)}, ${m.data.locations.to.lng.toFixed(5)}`
+                  : "目的地未能定位"}
               </p>
             </div>
           )}
@@ -384,7 +431,9 @@ function Planner() {
           {p.tags.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1.5 text-xs text-muted-foreground">
               {p.tags.map((t) => (
-                <span key={t} className="rounded-full bg-muted px-2 py-0.5">{t}</span>
+                <span key={t} className="rounded-full bg-muted px-2 py-0.5">
+                  {t}
+                </span>
               ))}
             </div>
           )}
@@ -413,7 +462,9 @@ function Planner() {
                     >
                       {source.title}
                     </a>
-                    {source.snippet && <span className="ml-1 text-muted-foreground">— {source.snippet}</span>}
+                    {source.snippet && (
+                      <span className="ml-1 text-muted-foreground">— {source.snippet}</span>
+                    )}
                   </li>
                 ))}
               </ul>

@@ -57,44 +57,71 @@ const LOCAL_PLACES: PlaceSuggestion[] = [
   { id: "spot-wilmax", name: "Wilmax England Office", area: "香港", type: "building" },
 ];
 
-const normalizePlaceQuery = (value: string) => value.toLowerCase().replace(/[香港地區、，,\s]/g, "");
+const normalizePlaceQuery = (value: string) =>
+  value.toLowerCase().replace(/[香港地區、，,\s]/g, "");
 
-const LOCAL_SUGGESTIONS: PlaceSuggestion[] = Object.entries(STATIONS).map(([id, name]): PlaceSuggestion => ({
-  id: `mtr-${id}`,
-  name: `${name}站`,
-  area: "港鐵車站",
-  type: "mtr",
-})).concat(LOCAL_PLACES);
+const LOCAL_SUGGESTIONS: PlaceSuggestion[] = Object.entries(STATIONS)
+  .map(([id, name]): PlaceSuggestion => ({
+    id: `mtr-${id}`,
+    name: `${name}站`,
+    area: "港鐵車站",
+    type: "mtr",
+  }))
+  .concat(LOCAL_PLACES);
 
 function localPlaceSearch(query: string) {
   const normalized = normalizePlaceQuery(query);
-  return LOCAL_SUGGESTIONS
-    .filter((place) => normalizePlaceQuery(`${place.name}${place.area}`).includes(normalized))
-    .sort((a, b) => normalizePlaceQuery(a.name).indexOf(normalized) - normalizePlaceQuery(b.name).indexOf(normalized));
+  return LOCAL_SUGGESTIONS.filter((place) =>
+    normalizePlaceQuery(`${place.name}${place.area}`).includes(normalized),
+  ).sort(
+    (a, b) =>
+      normalizePlaceQuery(a.name).indexOf(normalized) -
+      normalizePlaceQuery(b.name).indexOf(normalized),
+  );
 }
 
 function parseAlsResults(xml: string): PlaceSuggestion[] {
-  return [...xml.matchAll(/<Address>([\s\S]*?)<\/Address>/gi)].map((match, index) => {
-    const block = match[1] ?? "";
-    const value = (tag: string) => block.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i"))?.[1]?.replace(/<!\[CDATA\[|\]\]>/g, "").trim() ?? "";
-    const name = value("BuildingName") || value("PremisesAddress") || value("AddressLine");
-    const area = [value("District"), value("StreetName"), value("Region")].filter(Boolean).join("、");
-    return { id: `als-${index}-${encodeURIComponent(name)}`, name, area: area || "香港", type: "building" as const };
-  }).filter((place) => place.name);
+  return [...xml.matchAll(/<Address>([\s\S]*?)<\/Address>/gi)]
+    .map((match, index) => {
+      const block = match[1] ?? "";
+      const value = (tag: string) =>
+        block
+          .match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i"))?.[1]
+          ?.replace(/<!\[CDATA\[|\]\]>/g, "")
+          .trim() ?? "";
+      const name = value("BuildingName") || value("PremisesAddress") || value("AddressLine");
+      const area = [value("District"), value("StreetName"), value("Region")]
+        .filter(Boolean)
+        .join("、");
+      return {
+        id: `als-${index}-${encodeURIComponent(name)}`,
+        name,
+        area: area || "香港",
+        type: "building" as const,
+      };
+    })
+    .filter((place) => place.name);
 }
 
 export const searchPlaces = createServerFn({ method: "GET" })
-  .inputValidator((value: unknown) => z.object({ query: z.string().trim().min(1).max(80) }).parse(value))
+  .inputValidator((value: unknown) =>
+    z.object({ query: z.string().trim().min(1).max(80) }).parse(value),
+  )
   .handler(async ({ data }): Promise<PlaceSuggestion[]> => {
     const local = localPlaceSearch(data.query).slice(0, 6);
     if (local.length >= 6) return local;
     try {
-      const response = await fetch(`https://www.als.ogcio.gov.hk/lookup?q=${encodeURIComponent(data.query)}&n=6`, {
-        headers: { accept: "application/xml, text/xml" },
-      });
+      const response = await fetch(
+        `https://www.als.ogcio.gov.hk/lookup?q=${encodeURIComponent(data.query)}&n=6`,
+        {
+          headers: { accept: "application/xml, text/xml" },
+        },
+      );
       if (!response.ok) return local;
       const remote = parseAlsResults(await response.text());
-      return [...local, ...remote].filter((place, index, all) => all.findIndex((item) => item.name === place.name) === index).slice(0, 6);
+      return [...local, ...remote]
+        .filter((place, index, all) => all.findIndex((item) => item.name === place.name) === index)
+        .slice(0, 6);
     } catch {
       return local;
     }
@@ -222,7 +249,9 @@ async function geocode(place: string): Promise<GeoPlace | null> {
   const direct = COMMON_HK_PLACES[input.replace(/香港|(港鐵|地鐵)站$/g, "").trim()];
   if (direct) return direct;
 
-  const coordinateMatch = input.match(/^\\s*(-?\\d+(?:\\.\\d+)?)\\s*[,， ]\\s*(-?\\d+(?:\\.\\d+)?)\\s*$/);
+  const coordinateMatch = input.match(
+    /^\\s*(-?\\d+(?:\\.\\d+)?)\\s*[,， ]\\s*(-?\\d+(?:\\.\\d+)?)\\s*$/,
+  );
   if (coordinateMatch) {
     const lat = Number(coordinateMatch[1]);
     const lng = Number(coordinateMatch[2]);
@@ -264,22 +293,27 @@ async function geocode(place: string): Promise<GeoPlace | null> {
 }
 
 async function webSearch(from: string, to: string): Promise<WebSource[]> {
-  const queries = [
-    `${from} 到 ${to} 公共交通 路線 香港`,
-    `${from} ${to} 港鐵 巴士 渡輪 交通消息`,
-  ];
+  const queries = [`${from} 到 ${to} 公共交通 路線 香港`, `${from} ${to} 港鐵 巴士 渡輪 交通消息`];
   const sources: WebSource[] = [];
   for (const query of queries) {
     try {
-      const response = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
-        headers: { "user-agent": "HongKongGoGo/1.0 (route research)" },
-      });
+      const response = await fetch(
+        `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`,
+        {
+          headers: { "user-agent": "HongKongGoGo/1.0 (route research)" },
+        },
+      );
       if (!response.ok) continue;
       const html = await response.text();
-      const matches = [...html.matchAll(/<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi)];
+      const matches = [
+        ...html.matchAll(/<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi),
+      ];
       for (const match of matches.slice(0, 5)) {
         const url = match[1]?.replace(/&amp;/g, "&");
-        const title = match[2]?.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").trim();
+        const title = match[2]
+          ?.replace(/<[^>]+>/g, "")
+          .replace(/&amp;/g, "&")
+          .trim();
         if (!url || !title || sources.some((source) => source.url === url)) continue;
         sources.push({ title, url, snippet: "網上搜尋結果，請以官方即時資料及現場資訊核實。" });
       }
@@ -296,10 +330,10 @@ async function journeyTimes() {
     if (!response.ok) return "";
     const xml = await response.text();
     const value = (source: string, tag: string) =>
-      source.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, "i"))?.[1]?.replace(
-        /<!\\[CDATA\\[|\\]\\]>/g,
-        "",
-      ).trim() ?? "";
+      source
+        .match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, "i"))?.[1]
+        ?.replace(/<!\\[CDATA\\[|\\]\\]>/g, "")
+        .trim() ?? "";
     return xml
       .split(/(?=<LOCATION_ID>)/i)
       .map((block) => ({
@@ -465,11 +499,14 @@ ${webSources.length ? webSources.map((source, index) => `${index + 1}. ${source.
         tags: (p?.tags ?? []).slice(0, 3).map(String),
         tip: String(p?.tip ?? ""),
         weatherNote: String(p?.weatherNote ?? ""),
-        sources: (p?.sources ?? []).slice(0, 4).map((source: any) => ({
-          title: String(source?.title ?? "網上資料"),
-          url: String(source?.url ?? ""),
-          snippet: String(source?.snippet ?? ""),
-        })).filter((source: WebSource) => /^https?:\/\//.test(source.url)),
+        sources: (p?.sources ?? [])
+          .slice(0, 4)
+          .map((source: any) => ({
+            title: String(source?.title ?? "網上資料"),
+            url: String(source?.url ?? ""),
+            snippet: String(source?.snippet ?? ""),
+          }))
+          .filter((source: WebSource) => /^https?:\/\//.test(source.url)),
         legs: (p?.legs ?? []).slice(0, 8).map((l: any) => ({
           mode: (["mtr", "bus", "ferry", "walk"].includes(l?.mode)
             ? l.mode
@@ -502,7 +539,12 @@ ${webSources.length ? webSources.map((source, index) => `${index + 1}. ${source.
         plans,
         weather: w,
         ...(fromLocation || toLocation
-          ? { locations: { ...(fromLocation ? { from: fromLocation } : {}), ...(toLocation ? { to: toLocation } : {}) } }
+          ? {
+              locations: {
+                ...(fromLocation ? { from: fromLocation } : {}),
+                ...(toLocation ? { to: toLocation } : {}),
+              },
+            }
           : {}),
       };
     },
