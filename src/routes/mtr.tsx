@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Clock, MapPin, ArrowRight, Wallet, Navigation, DoorOpen } from "lucide-react";
 import { getMtr } from "@/lib/hk.functions";
 import { getMtrFare } from "@/lib/fare.functions";
+import { getMtrEstimatedMinutes } from "@/lib/trip.functions";
 import { TRAIN_DIRECTIONS } from "@/lib/mtr-direction-hours";
 import { LrtPanel } from "@/components/LrtPanel";
 const AIRPORT_EXPRESS_FARES: Record<string, { octopus: number; single: number }> = {
@@ -261,7 +262,7 @@ function MtrPage() {
     : true;
   const next = (wantUp ? q.data?.up : q.data?.down)?.[0];
   const waitMin = next ? Math.max(0, (new Date(toHkIso(next.time)).getTime() - now) / 60000) : null;
-  const ride = route ? Math.round(route.stops * MIN_PER_STOP + route.transfers * TRANSFER_MIN) : 0;
+  const ride = route ? (getMtrEstimatedMinutes(sta, dest) ?? Math.round(route.stops * MIN_PER_STOP + route.transfers * TRANSFER_MIN)) : 0;
 
   const selectLine = (l: Line) => {
     setLine(l);
@@ -432,44 +433,56 @@ function MtrPage() {
               </div>
 
               <div className="mx-5 mt-3 rounded-2xl border bg-card p-4 text-sm">
-                <p className="flex items-center gap-2 font-semibold">
-                  <Clock size={16} className="text-primary" />
-                  預計行程時間
-                </p>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="flex items-center gap-2 font-semibold">
+                    <Clock size={16} className="text-primary" />
+                    預計行程時間
+                  </p>
+                  {route && (
+                    <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+                      約 {ride} 分鐘
+                    </span>
+                  )}
+                </div>
                 {!route ? (
-                  <p className="mt-1 text-muted-foreground">請選擇不同的起點和終點</p>
+                  <p className="mt-3 rounded-xl bg-muted/60 px-3 py-2.5 text-muted-foreground">
+                    請選擇不同的起點和終點
+                  </p>
                 ) : (
                   <>
-                    <p className="mt-1">
-                      {STATIONS[sta]} → {STATIONS[dest]}（{route.stops} 個站
-                      {route.transfers > 0 ? ` · 轉乘 ${route.transfers} 次` : ""}）約{" "}
-                      <b className="text-lg text-primary">{ride}</b> 分鐘
-                    </p>
-                    <div className="mt-2 space-y-1.5">
+                    <div className="mt-3 rounded-xl bg-primary/5 px-3 py-3">
+                      <div className="flex items-center gap-2 font-semibold">
+                        <span className="truncate">{STATIONS[sta]}</span>
+                        <ArrowRight size={14} className="shrink-0 text-primary" />
+                        <span className="truncate">{STATIONS[dest]}</span>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {route.stops} 個站{route.transfers > 0 ? ` · 轉乘 ${route.transfers} 次` : " · 直達"}
+                      </p>
+                    </div>
+                    <div className="mt-3 space-y-2">
                       {route.segs.map((s, i) => (
-                        <div key={i} className="flex items-center gap-2 text-xs">
+                        <div key={i} className="flex items-center gap-2 rounded-xl bg-muted/60 px-3 py-2.5 text-xs">
                           <span
-                            className="shrink-0 rounded-full px-2 py-0.5 font-medium text-white"
+                            className="shrink-0 rounded-full px-2 py-0.5 font-semibold text-white"
                             style={{ background: s.line.color }}
                           >
                             {s.line.name}
                           </span>
-                          <span className="text-muted-foreground">
-                            {STATIONS[s.from]} <ArrowRight size={10} className="inline" />{" "}
-                            {STATIONS[s.to]}（{s.stops} 站）
+                          <span className="min-w-0 truncate text-muted-foreground">
+                            {STATIONS[s.from]} <ArrowRight size={10} className="inline" /> {STATIONS[s.to]}
                           </span>
+                          <span className="ml-auto shrink-0 font-medium text-foreground">{s.stops} 站</span>
                         </div>
                       ))}
                     </div>
                     {waitMin != null && (
-                      <p className="mt-2 text-muted-foreground">
-                        下班車 {Math.round(waitMin)} 分鐘後，預計{" "}
-                        {new Date(now + (waitMin + ride) * 60000).toLocaleTimeString("zh-HK", {
+                      <p className="mt-3 border-t pt-3 text-xs text-muted-foreground">
+                        下班車約 {Math.round(waitMin)} 分鐘後 · 預計 {new Date(now + (waitMin + ride) * 60000).toLocaleTimeString("zh-HK", {
                           hour: "2-digit",
                           minute: "2-digit",
                           timeZone: "Asia/Hong_Kong",
-                        })}{" "}
-                        到達
+                        })} 到達
                       </p>
                     )}
                     {isAirportExpressRoute ? (

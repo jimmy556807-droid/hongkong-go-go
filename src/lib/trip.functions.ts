@@ -5103,7 +5103,9 @@ const MTR_TIME_OVERRIDES: Record<string, number> = {
 
 function stationCode(value: string) {
   const normalized = value.replace(/[港鐵地鐵站綫線\s]/g, "").trim();
-  return Object.entries(STATIONS).find(([, name]) => name === normalized)?.[0] ?? null;
+  return STATIONS[normalized]
+    ? normalized
+    : Object.entries(STATIONS).find(([, name]) => name === normalized)?.[0] ?? null;
 }
 
 function mtrPairKey(a: string, b: string) {
