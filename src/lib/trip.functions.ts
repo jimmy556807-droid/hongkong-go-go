@@ -98,37 +98,45 @@ function localPlaceSearch(query: string) {
   );
 }
 
-function parseAlsResults(xml: string): PlaceSuggestion[] {
-  return [...xml.matchAll(/<Address>([\s\S]*?)<\/Address>/gi)]
-    .map((match, index) => {
-      const block = match[1] ?? "";
-      const value = (tag: string) =>
-        block
-          .match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i"))?.[1]
-          ?.replace(/<!\[CDATA\[|\]\]>/g, "")
-          .trim() ?? "";
-      const name =
-        value("ChiBuildingName") ||
-        value("BuildingName") ||
-        value("ChiPremisesAddress") ||
-        value("PremisesAddress") ||
-        value("AddressLine") ||
-        value("ChiStreetName");
-      const area = [
-        value("ChiDistrict"),
-        value("District"),
-        value("ChiStreetName"),
-        value("StreetName"),
-        value("ChiRegion"),
-        value("Region"),
-      ]
+type AlsAddress = {
+  Address?: {
+    PremisesAddress?: {
+      ChiPremisesAddress?: {
+        Region?: string;
+        ChiDistrict?: { DcDistrict?: string };
+        ChiStreet?: { StreetName?: string; BuildingNoFrom?: string };
+        ChiEstate?: { EstateName?: string };
+        BuildingName?: string;
+      };
+      GeospatialInformation?: { Latitude?: string; Longitude?: string };
+    };
+  };
+  ValidationInformation?: { Score?: number };
+};
+
+function parseAlsResults(payload: unknown): PlaceSuggestion[] {
+  const records = (payload as { SuggestedAddress?: AlsAddress[] })?.SuggestedAddress ?? [];
+  return records
+    .map((record, index) => {
+      const address = record.Address?.PremisesAddress?.ChiPremisesAddress;
+      const street = address?.ChiStreet;
+      const building = address?.BuildingName || address?.ChiEstate?.EstateName || "";
+      const streetLine = [street?.StreetName, street?.BuildingNoFrom].filter(Boolean).join(" ");
+      const name = building || streetLine || address?.Region || "";
+      const area = [address?.ChiDistrict?.DcDistrict, streetLine, address?.Region]
         .filter(Boolean)
         .join("、");
+      const lower = `${name}${area}`.toLowerCase();
+      const type = /口岸|管制站|邊境|boundary|port/.test(lower)
+        ? "border"
+        : /商場|中心|大廈|屋邨|廣場|mall|plaza|building|estate/.test(lower)
+          ? "building"
+          : "spot";
       return {
         id: `als-${index}-${encodeURIComponent(name)}`,
         name,
         area: area || "香港",
-        type: "building" as const,
+        type: type as PlaceSuggestion["type"],
       };
     })
     .filter((place) => place.name);
@@ -143,13 +151,16 @@ export const searchPlaces = createServerFn({ method: "GET" })
     if (local.length >= 6) return local;
     try {
       const response = await fetch(
-        `https://www.als.ogcio.gov.hk/lookup?q=${encodeURIComponent(data.query)}&n=6`,
+        `https://www.als.gov.hk/lookup?q=${encodeURIComponent(data.query)}&n=6&t=20`,
         {
-          headers: { accept: "application/xml, text/xml" },
+          headers: {
+            accept: "application/json",
+            "accept-language": "zh-Hant",
+          },
         },
       );
       if (!response.ok) return local;
-      const remote = parseAlsResults(await response.text());
+      const remote = parseAlsResults(await response.json());
       return [...local, ...remote]
         .filter((place, index, all) => all.findIndex((item) => item.name === place.name) === index)
         .slice(0, 6);

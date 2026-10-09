@@ -193,7 +193,7 @@ function Planner() {
       250,
     );
     return () => window.clearTimeout(timer);
-  }, [to, focusedField]);
+  }, [from, to, focusedField]);
 
   useEffect(() => {
     const onPointerDown = (event: PointerEvent) => {
