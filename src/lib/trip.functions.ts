@@ -160,8 +160,18 @@ async function geocode(place: string): Promise<GeoPlace | null> {
   const direct = COMMON_HK_PLACES[input.replace(/香港|(港鐵|地鐵)站$/g, "").trim()];
   if (direct) return direct;
 
+  const coordinateMatch = input.match(/^\\s*(-?\\d+(?:\\.\\d+)?)\\s*[,， ]\\s*(-?\\d+(?:\\.\\d+)?)\\s*$/);
+  if (coordinateMatch) {
+    const lat = Number(coordinateMatch[1]);
+    const lng = Number(coordinateMatch[2]);
+    if (lat >= 22.1 && lat <= 22.6 && lng >= 113.7 && lng <= 114.5) {
+      return { displayName: "目前位置", lat, lng };
+    }
+  }
+
   const queries = [
     input,
+    `${input}, Hong Kong`,
     input.includes("香港") ? input : `${input}, 香港`,
     input.replace(/(港鐵|地鐵)站/g, "站"),
   ].filter((query, index, all) => query && all.indexOf(query) === index);
@@ -171,7 +181,7 @@ async function geocode(place: string): Promise<GeoPlace | null> {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 5000);
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=hk&accept-language=zh-Hant,zh-TW,en&addressdetails=1&q=${encodeURIComponent(query)}`,
+        `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=zh-Hant,zh-TW,en&addressdetails=1&q=${encodeURIComponent(query)}`,
         {
           signal: controller.signal,
           headers: { accept: "application/json", "user-agent": "HongKongGoGo/1.0 (trip planner)" },
