@@ -138,12 +138,13 @@ function LegRow({ leg }: { leg: Leg }) {
 function Planner() {
   const { position, status, placeName } = useCurrentLocation();
   const [to, setTo] = useState("");
-  const from = placeName ?? (position ? `目前位置（${position.lat.toFixed(5)}, ${position.lng.toFixed(5)}）` : "");
+  const from = placeName ?? (position ? "目前位置" : "");
+  const geocodableFrom = placeName ?? (position ? `${position.lat}, ${position.lng}` : "");
   const { favs, save, remove } = useFavs();
   const plan = useServerFn(planTrip);
-  const m = useMutation({ mutationFn: () => plan({ data: { from: from.trim(), to: to.trim() } }) });
+  const m = useMutation({ mutationFn: () => plan({ data: { from: geocodableFrom.trim(), to: to.trim() } }) });
   const running = m.isPending && m.submittedAt > 0;
-  const ready = !!(from.trim() && to.trim());
+  const ready = !!(geocodableFrom.trim() && to.trim());
   const [idx, setIdx] = useState(0);
   const plans = m.data?.plans ?? [];
   const p = plans[Math.min(idx, Math.max(plans.length - 1, 0))];
@@ -174,7 +175,7 @@ function Planner() {
           <input
             value={to}
             onChange={(e) => setTo(e.target.value)}
-            placeholder="目的地，例如：沙田"
+            placeholder="輸入目的地，例如：Wilmax England Office、沙田"
             className="w-full bg-transparent py-3 pr-10 text-sm outline-none"
           />
         </div>
