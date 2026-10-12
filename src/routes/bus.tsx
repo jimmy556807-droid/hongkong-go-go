@@ -23,7 +23,7 @@ function BusStopFare({
   idx,
 }: {
   route: string;
-  co: "KMB" | "CTB";
+  co: "KMB" | "CTB" | "NLB";
   dir: "outbound" | "inbound";
   idx: number;
 }) {
@@ -49,7 +49,7 @@ function BusFareBox({
   name,
 }: {
   route: string;
-  co: "KMB" | "CTB";
+  co: "KMB" | "CTB" | "NLB";
   dir: "outbound" | "inbound";
   idx: number | null;
   name?: string | undefined;
@@ -260,8 +260,8 @@ type GmbRoute = {
 function BusPage() {
   const [input, setInput] = useState("");
   const [route, setRoute] = useState<string | null>(null);
-  const [co, setCo] = useState<"KMB" | "CTB">("KMB");
-  const [activeCo, setActiveCo] = useState<"KMB" | "CTB" | "GMB">("KMB");
+  const [co, setCo] = useState<"KMB" | "CTB" | "NLB">("KMB");
+  const [activeCo, setActiveCo] = useState<"KMB" | "CTB" | "NLB" | "GMB">("KMB");
   const [dir, setDir] = useState<"outbound" | "inbound">("outbound");
   const [from, setFrom] = useState<number | null>(null);
   const [to, setTo] = useState<number | null>(null);
@@ -311,7 +311,7 @@ function BusPage() {
       .filter((x) => x.s >= 0)
       .sort((a, b) => a.s - b.s || a.r.route.localeCompare(b.r.route, "en", { numeric: true }));
     const perCo = (co: string, n: number) => scored.filter((x) => x.r.co === co).slice(0, n);
-    const busMatches = [...perCo("KMB", 14), ...perCo("CTB", 14)]
+    const busMatches = [...perCo("KMB", 14), ...perCo("CTB", 14), ...perCo("NLB", 14)]
       .sort((a, b) => a.s - b.s || a.r.route.localeCompare(b.r.route, "en", { numeric: true }))
       .map((x) => ({ type: "bus" as const, route: x.r }));
     const gmbMatches = (gmbRoutes.data ?? [])
@@ -323,7 +323,7 @@ function BusPage() {
     return activeCo === "GMB" ? [...gmbMatches, ...busMatches] : [...busMatches, ...gmbMatches];
   }, [input, routes.data, gmbRoutes.data, activeCo]);
 
-  const pick = (r: string, d: "outbound" | "inbound", c: "KMB" | "CTB") => {
+  const pick = (r: string, d: "outbound" | "inbound", c: "KMB" | "CTB" | "NLB") => {
     setRoute(r);
     setDir(d);
     setCo(c);
@@ -363,8 +363,8 @@ function BusPage() {
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-  placeholder="搜尋九巴、城巴、專綫小巴或目的地"
-  aria-label="搜尋九巴、城巴或專綫小巴路線"
+  placeholder="搜尋九巴、城巴、大嶼山巴士或目的地"
+  aria-label="搜尋九巴、城巴、大嶼山巴士或專綫小巴路線"
   className="w-full bg-transparent py-3 outline-none"
             />
           </div>
@@ -412,7 +412,7 @@ function BusPage() {
       {!route && (
         <div className="mx-5 mt-4">
           <div
-            className="mt-3 grid grid-cols-3 rounded-xl bg-muted p-1"
+            className="mt-3 grid grid-cols-4 rounded-xl bg-muted p-1"
             role="tablist"
             aria-label="巴士公司"
           >
@@ -434,6 +434,14 @@ function BusPage() {
             </button>
             <button
               role="tab"
+              aria-selected={activeCo === "NLB"}
+              onClick={() => setActiveCo("NLB")}
+              className={`rounded-lg px-2 py-2 text-sm font-semibold transition ${activeCo === "NLB" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}
+            >
+              嶼巴
+            </button>
+            <button
+              role="tab"
               aria-selected={activeCo === "GMB"}
               onClick={() => setActiveCo("GMB")}
               className={`rounded-lg px-2 py-2 text-sm font-semibold transition ${activeCo === "GMB" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}
@@ -441,6 +449,35 @@ function BusPage() {
               專綫小巴
             </button>
           </div>
+          {activeCo === "NLB" && !input && (
+            <div className="mt-3 rounded-2xl border bg-card p-3 shadow-sm">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-sm font-semibold">熱門嶼巴路線</p>
+                <span className="text-xs text-muted-foreground">官方路線資料</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {(routes.data ?? [])
+                  .filter((r) => r.co === "NLB")
+                  .filter((r, i, all) => all.findIndex((x) => x.route === r.route) === i)
+                  .sort((a, b) => {
+                    const popular = ["11", "23", "37M", "38", "B4", "B6", "1R"];
+                    return (popular.indexOf(a.route) < 0 ? 99 : popular.indexOf(a.route)) - (popular.indexOf(b.route) < 0 ? 99 : popular.indexOf(b.route));
+                  })
+                  .slice(0, 8)
+                  .map((r) => (
+                    <button
+                      key={r.route}
+                      type="button"
+                      onClick={() => pick(r.route, r.dir, "NLB")}
+                      className="rounded-xl border px-3 py-2 text-left transition hover:bg-muted/60"
+                    >
+                      <b className="text-primary">{r.route}</b>
+                      <span className="mt-0.5 block truncate text-xs text-muted-foreground">往 {r.dest}</span>
+                    </button>
+                  ))}
+              </div>
+            </div>
+          )}
           {!pos && (
             <p className="mt-2 text-sm text-muted-foreground">
               正在取得你嘅位置…如未能定位，請用上面搜尋路線。
@@ -636,7 +673,7 @@ function BusPage() {
         </div>
       )}
 
-      {route && q.data?.dest && (
+      {route && q.data?.dest && co !== "NLB" && (
         <BusFareBox
           route={route}
           co={co}
@@ -660,18 +697,18 @@ function BusPage() {
               />
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setStop({ id: s.id, name: s.name, co })}
+                  onClick={() => co !== "NLB" && setStop({ id: s.id, name: s.name, co })}
                   className="text-left font-medium underline-offset-2 hover:underline"
                 >
                   {s.name}
                 </button>
-                {route && (
+                {route && co !== "NLB" && (
                   <BusStopFare route={route} co={co} dir={dir} idx={stops.indexOf(s)} />
                 )}
               </div>
               <div className="flex items-center gap-3 text-sm">
                 {s.etas.length ? (
-                  s.etas.map((e, i) => <Countdown key={i} at={e} now={now} />)
+                  s.etas.map((e: string, i: number) => <Countdown key={i} at={e} now={now} />)
                 ) : (
                   <span className="text-muted-foreground">暫無班次</span>
                 )}
@@ -833,12 +870,12 @@ function GmbSheet({ routeId, dest, onClose }: { routeId: string; dest?: string |
   );
 }
 
-function CoTag({ co }: { co: "KMB" | "CTB" }) {
+  function CoTag({ co }: { co: "KMB" | "CTB" | "NLB" }) {
   return (
-    <span
-      className={`mr-1 rounded px-1.5 py-0.5 text-[10px] font-bold ${co === "KMB" ? "bg-destructive/15 text-destructive" : "bg-accent text-accent-foreground"}`}
-    >
-      {co === "KMB" ? "九巴" : "城巴"}
+  <span
+  className={`mr-1 rounded px-1.5 py-0.5 text-[10px] font-bold ${co === "KMB" ? "bg-destructive/15 text-destructive" : co === "NLB" ? "bg-sky-100 text-sky-700" : "bg-accent text-accent-foreground"}`}
+  >
+  {co === "KMB" ? "九巴" : co === "NLB" ? "新大嶼山巴士" : "城巴"}
     </span>
   );
 }
@@ -851,7 +888,7 @@ function StopSheet({
   onPick,
 }: {
   stop: { id: string; name: string };
-  co: "KMB" | "CTB";
+  co: "KMB" | "CTB" | "NLB";
   route: string | null;
   onClose: () => void;
   onPick: (r: string) => void;
