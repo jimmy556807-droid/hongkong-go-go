@@ -110,11 +110,9 @@ const MTR_TIME_OVERRIDES: Record<string, number> = {
   "HOK|WCH": 21,
   "HOK|LET": 23,
   "HOK|SOH": 25,
-  "HOK|KOW": 5,
   "HOK|OLY": 7,
   "HOK|NAC": 9,
   "HOK|LAK": 13,
-  "HOK|TSY": 16,
   "HOK|TUC": 32,
   "HOK|TKO": 33,
   "HOK|HAH": 36,
@@ -212,7 +210,6 @@ const MTR_TIME_OVERRIDES: Record<string, number> = {
   "KOW|OLY": 4,
   "KOW|NAC": 6,
   "KOW|LAK": 10,
-  "KOW|TSY": 13,
   "KOW|TUC": 29,
   "KOW|TKO": 38,
   "KOW|HAH": 41,
@@ -4239,87 +4236,6 @@ const MTR_TIME_OVERRIDES: Record<string, number> = {
   "SOH|KWH": 41,
   "SOH|TWH": 44,
   "SOH|TSW": 45,
-  "HOK|KOW": 5,
-  "HOK|OLY": 7,
-  "HOK|NAC": 9,
-  "HOK|LAK": 13,
-  "HOK|TSY": 16,
-  "HOK|TUC": 32,
-  "HOK|TKO": 33,
-  "HOK|HAH": 36,
-  "HOK|POA": 38,
-  "HOK|LHP": 39,
-  "HOK|WKS": 52,
-  "HOK|MOS": 50,
-  "HOK|HEO": 48,
-  "HOK|TSH": 46,
-  "HOK|SHM": 43,
-  "HOK|CIO": 41,
-  "HOK|STW": 39,
-  "HOK|CKT": 37,
-  "HOK|HIK": 37,
-  "HOK|KAT": 31,
-  "HOK|SUW": 29,
-  "HOK|TKW": 27,
-  "HOK|ETS": 20,
-  "HOK|AUS": 17,
-  "HOK|MEF": 16,
-  "HOK|TWW": 21,
-  "HOK|KSR": 27,
-  "HOK|YUL": 30,
-  "HOK|LOP": 32,
-  "HOK|TIS": 35,
-  "HOK|SIH": 39,
-  "HOK|TUM": 42,
-  "HOK|TST": 15,
-  "HOK|JOR": 17,
-  "HOK|SSP": 25,
-  "HOK|CSW": 23,
-  "HOK|LCK": 21,
-  "HOK|KWF": 17,
-  "HOK|KWH": 19,
-  "HOK|TWH": 21,
-  "HOK|TSW": 23,
-  "KOW|OLY": 4,
-  "KOW|NAC": 6,
-  "KOW|LAK": 10,
-  "KOW|TSY": 13,
-  "KOW|TUC": 29,
-  "KOW|TKO": 38,
-  "KOW|HAH": 41,
-  "KOW|POA": 43,
-  "KOW|LHP": 44,
-  "KOW|WKS": 55,
-  "KOW|MOS": 52,
-  "KOW|HEO": 50,
-  "KOW|TSH": 48,
-  "KOW|SHM": 45,
-  "KOW|CIO": 43,
-  "KOW|STW": 41,
-  "KOW|CKT": 39,
-  "KOW|HIK": 35,
-  "KOW|KAT": 28,
-  "KOW|SUW": 26,
-  "KOW|TKW": 24,
-  "KOW|ETS": 17,
-  "KOW|AUS": 14,
-  "KOW|MEF": 13,
-  "KOW|TWW": 18,
-  "KOW|KSR": 24,
-  "KOW|YUL": 27,
-  "KOW|LOP": 29,
-  "KOW|TIS": 32,
-  "KOW|SIH": 36,
-  "KOW|TUM": 39,
-  "KOW|TST": 20,
-  "KOW|JOR": 22,
-  "KOW|SSP": 22,
-  "KOW|CSW": 20,
-  "KOW|LCK": 18,
-  "KOW|KWF": 14,
-  "KOW|KWH": 16,
-  "KOW|TWH": 18,
-  "KOW|TSW": 20,
   "OLY|NAC": 4,
   "OLY|LAK": 8,
   "OLY|TSY": 11,
@@ -4434,42 +4350,6 @@ const MTR_TIME_OVERRIDES: Record<string, number> = {
   "LAK|KWH": 5,
   "LAK|TWH": 7,
   "LAK|TSW": 9,
-  "TSY|TUC": 18,
-  "TSY|TKO": 47,
-  "TSY|HAH": 50,
-  "TSY|POA": 52,
-  "TSY|LHP": 53,
-  "TSY|WKS": 54,
-  "TSY|MOS": 52,
-  "TSY|HEO": 49,
-  "TSY|TSH": 47,
-  "TSY|SHM": 44,
-  "TSY|CIO": 42,
-  "TSY|STW": 40,
-  "TSY|CKT": 38,
-  "TSY|HIK": 37,
-  "TSY|KAT": 30,
-  "TSY|SUW": 28,
-  "TSY|TKW": 26,
-  "TSY|ETS": 19,
-  "TSY|AUS": 16,
-  "TSY|MEF": 9,
-  "TSY|TWW": 18,
-  "TSY|KSR": 24,
-  "TSY|YUL": 27,
-  "TSY|LOP": 29,
-  "TSY|TIS": 32,
-  "TSY|SIH": 37,
-  "TSY|TUM": 39,
-  "TSY|TST": 25,
-  "TSY|JOR": 23,
-  "TSY|SSP": 15,
-  "TSY|CSW": 13,
-  "TSY|LCK": 11,
-  "TSY|KWF": 10,
-  "TSY|KWH": 12,
-  "TSY|TWH": 14,
-  "TSY|TSW": 16,
   "TUC|TKO": 63,
   "TUC|HAH": 66,
   "TUC|POA": 68,
@@ -5128,7 +5008,9 @@ export function getMtrEstimatedMinutes(from: string, to: string): number | null 
     const currentDistance = distances.get(current)!;
     for (const line of LINES.filter((item) => item.stations.includes(current))) {
       const index = line.stations.indexOf(current);
-      for (const next of [line.stations[index - 1], line.stations[index + 1]].filter(Boolean)) {
+      for (const next of [line.stations[index - 1], line.stations[index + 1]].filter(
+        (station): station is string => Boolean(station),
+      )) {
         const nextDistance = currentDistance + MTR_EDGE_MINUTES;
         if (!distances.has(next) || nextDistance < distances.get(next)!) {
           distances.set(next, nextDistance);
@@ -5337,7 +5219,7 @@ async function liveBus(route: string, co: "KMB" | "CTB", stopName: string) {
   }
 }
 
-async function news() {
+async function fetchNews() {
   try {
     const r = await fetch("https://resource.data.one.gov.hk/td/tc/specialtrafficnews.xml");
     const xml = await r.text();
@@ -5370,6 +5252,21 @@ const COMMON_HK_PLACES: Record<string, GeoPlace> = {
   機場: { displayName: "香港國際機場", lat: 22.308, lng: 113.9185 },
 };
 
+const GOVERNMENT_FETCH_TTL = 180_000;
+const governmentCache = new Map<string, { expiresAt: number; value: string }>();
+
+async function cachedGovernmentFetch(key: string, loader: () => Promise<string>): Promise<string> {
+  const cached = governmentCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+  try {
+    const value = await loader();
+    governmentCache.set(key, { expiresAt: Date.now() + GOVERNMENT_FETCH_TTL, value });
+    return value;
+  } catch {
+    return "";
+  }
+}
+
 async function geocode(place: string): Promise<GeoPlace | null> {
   const input = place.trim();
   if (!input) return null;
@@ -5393,7 +5290,7 @@ async function geocode(place: string): Promise<GeoPlace | null> {
     }
   }
 
-  // Nominatim 對只有區名或香港口語站名的結果不穩定，先用常見地點作可靠兜底。
+  // 常見香港地點先走本地座標庫，避免不必要的網絡請求。
   const direct = COMMON_HK_PLACES[input.replace(/香港|(港鐵|地鐵)站$/g, "").trim()];
   if (direct) return direct;
 
@@ -5408,71 +5305,52 @@ async function geocode(place: string): Promise<GeoPlace | null> {
     }
   }
 
-  const queries = [
-    `${input}, Hong Kong`,
-    input.includes("香港") ? input : `${input}, 香港`,
-    `${input.replace(/(港鐵|地鐵)站/g, "站")}, Hong Kong`,
-  ].filter((query, index, all) => query && all.indexOf(query) === index);
-
-  for (const query of queries) {
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&bounded=1&viewbox=113.7,22.1,114.5,22.6&accept-language=zh-Hant,zh-TW,en&addressdetails=1&q=${encodeURIComponent(query)}`,
-        {
-          signal: controller.signal,
-          headers: { accept: "application/json", "user-agent": "HongKongGoGo/1.0 (trip planner)" },
-        },
-      );
-      clearTimeout(timeout);
-      if (!response.ok) continue;
-      const result = (await response.json())?.[0];
-      const lat = Number(result?.lat);
-      const lng = Number(result?.lon);
-      if (Number.isFinite(lat) && Number.isFinite(lng)) {
-        return { displayName: String(result.display_name ?? place), lat, lng };
-      }
-    } catch {
-      // 嘗試下一個查詢格式，避免一次上游逾時令整個行程失敗。
-    }
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 1500);
+    const response = await fetch(
+      `https://www.als.ogcio.gov.hk/lookup?q=${encodeURIComponent(input)}&n=1`,
+      { signal: controller.signal, headers: { accept: "application/json" } },
+    );
+    clearTimeout(timeout);
+    if (!response.ok) return null;
+    const result: any = await response.json();
+    const candidate = result?.SuggestedAddress?.[0] ?? result?.suggestedAddress?.[0];
+    const lat = Number(candidate?.Address?.PremisesAddress?.GeospatialInformation?.Latitude ?? candidate?.latitude);
+    const lng = Number(candidate?.Address?.PremisesAddress?.GeospatialInformation?.Longitude ?? candidate?.longitude);
+    return Number.isFinite(lat) && Number.isFinite(lng)
+      ? { displayName: String(candidate?.Address?.AddressLine ?? input), lat, lng }
+      : null;
+  } catch {
+    return null;
   }
-  return null;
 }
 
-async function webSearch(from: string, to: string): Promise<WebSource[]> {
-  const queries = [`${from} 到 ${to} 公共交通 路線 香港`, `${from} ${to} 港鐵 巴士 渡輪 交通消息`];
-  const sources: WebSource[] = [];
-  for (const query of queries) {
-    try {
-      const response = await fetch(
-        `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`,
-        {
-          headers: { "user-agent": "HongKongGoGo/1.0 (route research)" },
-        },
-      );
-      if (!response.ok) continue;
-      const html = await response.text();
-      const matches = [
-        ...html.matchAll(/<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi),
-      ];
-      for (const match of matches.slice(0, 5)) {
-        const url = match[1]?.replace(/&amp;/g, "&");
-        const title = match[2]
-          ?.replace(/<[^>]+>/g, "")
-          .replace(/&amp;/g, "&")
-          .trim();
-        if (!url || !title || sources.some((source) => source.url === url)) continue;
-        sources.push({ title, url, snippet: "網上搜尋結果，請以官方即時資料及現場資訊核實。" });
-      }
-    } catch {
-      // 搜尋服務不可用時仍可使用官方交通資料規劃。
-    }
-  }
-  return sources.slice(0, 8);
+const TRANSIT_CORRIDORS = [
+  { keys: ["大埔", "太和", "廣福", "觀塘", "九龍灣"], text: "新界東↔九龍東：優先考慮 74X、74B、75X；粉嶺/上水↔觀塘可考慮 277X；沙田↔觀塘可考慮 89X、89D、80。" },
+  { keys: ["粉嶺", "上水", "觀塘"], text: "粉嶺/上水↔觀塘：優先考慮 277X。" },
+  { keys: ["沙田", "觀塘"], text: "沙田↔觀塘：優先考慮 89X、89D、80。" },
+  { keys: ["元朗", "中環", "上環", "灣仔", "銅鑼灣"], text: "元朗↔港島：優先考慮 968。" },
+  { keys: ["屯門", "中環", "上環", "灣仔", "銅鑼灣"], text: "屯門↔港島：優先考慮 960、961。" },
+  { keys: ["大埔", "機場", "港珠澳"], text: "大埔↔機場/港珠澳口岸：優先考慮 A47X。" },
+  { keys: ["沙田", "機場"], text: "沙田↔機場：優先考慮 A41。" },
+  { keys: ["荃灣", "���涌", "機場"], text: "荃灣/葵涌↔機場：優先考慮 A31、A30。" },
+  { keys: ["屯門", "機場"], text: "屯門↔機場：優先考慮 A33X、A36。" },
+  { keys: ["元朗", "機場"], text: "元朗↔機場：優先考慮 A36。" },
+  { keys: ["香園圍"], text: "香園圍口岸：考慮 B7、B8。" },
+  { keys: ["深圳灣"], text: "深圳灣口岸：考慮 B2、B3、B3X。" },
+  { keys: ["落馬洲", "福田"], text: "落馬洲/福田：考慮 B1 或東鐵線。" },
+  { keys: ["中環", "尖沙咀", "灣仔"], text: "維港兩岸：中環/灣仔↔尖沙咀優先考慮天星小輪。" },
+];
+
+function transitCorridor(from: string, to: string): string {
+  const text = `${from}${to}`;
+  return TRANSIT_CORRIDORS.filter(({ keys }) => keys.filter((key) => text.includes(key)).length >= 2)
+    .map(({ text: corridor }) => corridor).join("\n");
 }
 
-async function journeyTimes() {
+
+async function fetchJourneyTimes() {
   try {
     const response = await fetch("https://resource.data.one.gov.hk/td/jss/Journeytimev2.xml");
     if (!response.ok) return "";
@@ -5499,7 +5377,7 @@ async function journeyTimes() {
   }
 }
 
-async function weather() {
+async function fetchWeather() {
   try {
     const base = "https://data.weather.gov.hk/weatherAPI/opendata/weather.php?lang=tc&dataType=";
     const [x, wr]: any[] = await Promise.all([
@@ -5520,6 +5398,10 @@ async function weather() {
   }
 }
 
+const news = () => cachedGovernmentFetch("td-special-traffic", fetchNews);
+const journeyTimes = () => cachedGovernmentFetch("td-journey-time", fetchJourneyTimes);
+const weather = () => cachedGovernmentFetch("hko-weather", fetchWeather);
+
 export const planTrip = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => Input.parse(d))
   .handler(
@@ -5538,19 +5420,14 @@ export const planTrip = createServerFn({ method: "POST" })
         geocode(data.from),
         geocode(data.to),
       ]).catch(() => [null, null]);
-      const [n, w, jt, webSources] = await Promise.all([
-        news(),
-        weather(),
-        journeyTimes(),
-        webSearch(data.from, data.to),
-      ]);
+      const [n, w, jt] = await Promise.all([news(), weather(), journeyTimes()]);
+      const corridor = transitCorridor(data.from, data.to);
       const lines = LINES.map(
         (l) => `${l.name}(${l.code}): ${l.stations.map((s) => `${STATIONS[s]}=${s}`).join(" ")}`,
       ).join("\n");
 
-      const sys = `你是香港本土交通出行研究 AI，會先分析網上搜尋結果，再結合官方即時資料，為用戶提供可核實的公共交通路線。
-你精通全港港鐵、九巴、城巴、渡輪及專綫小巴網絡，必須以香港本地人真實出行角度回答。
-網上搜尋結果不是保證正確的班次資料；只可用來發現可能的路線，路線、站名、方向及交通工具必須與官方資料一致。不可將搜尋摘要當成即時班次。
+      const sys = `你是香港本土交通出行研究 AI，結合本地交通網絡與官方即時資料，提供可核實的公共交通路線。
+你精通港鐵、九巴、城巴及渡輪；優先直達特快，再考慮多次轉乘港鐵。嚴禁捏造不存在的路線、站名、方向或班次。
 
 【用戶行程需求】
 - 出發地：${data.from}
@@ -5595,8 +5472,8 @@ ${lines}
 - mode 為 bus 時，name 必須以「巴士 <路線號>」表示，co 必須填 KMB 或 CTB。
 - mode 為 ferry 或 walk 時，不要填寫 line、sta 或 co。
 
-【網上搜尋結果】
-${webSources.length ? webSources.map((source, index) => `${index + 1}. ${source.title}\nURL: ${source.url}\n${source.snippet}`).join("\n") : "暫時未取得搜尋結果，必須只使用官方資料及已知交通網絡。"}
+【本地跨區特快幹線走廊】
+${corridor || "未命中本地走廊，按已知官方交通網絡審慎規劃。"}
 
 現時實時資訊：
 天氣：${w || "暫無"}
@@ -5611,7 +5488,8 @@ ${webSources.length ? webSources.map((source, index) => `${index + 1}. ${source.
           body: JSON.stringify({
             model: "deepseek-flash",
             stream: true,
-            temperature: 0.3,
+            max_tokens: 800,
+            temperature: 0.2,
             response_format: { type: "json_object" },
             messages: [
               { role: "system", content: sys },
