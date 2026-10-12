@@ -125,7 +125,7 @@ function NlbFareBox({ stops, fromSeq }: { stops: Array<{ seq: number; name: stri
   return (
     <div className="mx-5 mt-3 rounded-2xl border bg-card p-4 text-sm">
       <p className="flex items-center gap-2 font-semibold">
-        <Wallet size={16} className="text-primary" />
+        <Wallet size={16} className="text-sky-600" />
         車資詳情
       </p>
       <div className="mt-2 grid grid-cols-2 gap-1.5 text-xs">
@@ -511,7 +511,7 @@ function BusPage() {
                       onClick={() => pick(r.route, r.dir, "NLB")}
                       className="rounded-xl border px-3 py-2 text-left transition hover:bg-muted/60"
                     >
-                      <b className="text-primary">{r.route}</b>
+                      <b className="text-sky-700">{r.route}</b>
                       <span className="mt-0.5 block truncate text-xs text-muted-foreground">往 {r.dest}</span>
                     </button>
                   ))}
@@ -545,6 +545,10 @@ function BusPage() {
                   城巴
                 </span>
                 <span>
+                  <i className="mr-1 inline-block size-2 rounded-full bg-sky-500" />
+                  嶼巴
+                </span>
+                <span>
                   <i className="mr-1 inline-block size-2 rounded-full bg-amber-500" />
                   專綫小巴
                 </span>
@@ -562,9 +566,9 @@ function BusPage() {
                         className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-muted/60"
                       >
                         <span
-                          className={`flex size-9 shrink-0 items-center justify-center rounded-xl text-xs font-bold ${r.co === "KMB" ? "bg-destructive/15 text-destructive" : "bg-accent text-accent-foreground"}`}
+                          className={`flex size-9 shrink-0 items-center justify-center rounded-xl text-xs font-bold ${r.co === "KMB" ? "bg-destructive/15 text-destructive" : r.co === "NLB" ? "bg-sky-100 text-sky-700" : "bg-accent text-accent-foreground"}`}
                         >
-                          {r.co === "KMB" ? "九巴" : "城巴"}
+                          {r.co === "KMB" ? "九巴" : r.co === "NLB" ? "嶼巴" : "城巴"}
                         </span>
                         <span className="min-w-0 flex-1 text-sm">
                           <b className="mr-2 text-base">{r.route}</b>往 {r.dest}
@@ -749,7 +753,7 @@ function BusPage() {
                   <BusStopFare route={route} co={co} dir={dir} idx={stops.indexOf(s)} />
                 )}
                 {route && co === "NLB" && s.fare != null && (
-                  <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">${s.fare.toFixed(1)}</span>
+                  <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-700">${s.fare.toFixed(1)}</span>
                 )}
               </div>
               <div className="flex items-center gap-3 text-sm">
@@ -983,7 +987,7 @@ function StopSheet({
             {stop.fare != null && (
               <div className="mt-3 rounded-2xl border bg-card p-4 text-sm">
                 <p className="flex items-center gap-2 font-semibold">
-                  <Wallet size={16} className="text-primary" />
+                  <Wallet size={16} className="text-sky-600" />
                   此站上車車資
                 </p>
                 <div className="mt-2 grid grid-cols-2 gap-1.5 text-xs">
@@ -1010,7 +1014,7 @@ function StopSheet({
                 href={mapUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-3 flex items-center gap-2 rounded-xl border bg-card px-4 py-3 text-sm font-medium text-primary transition hover:bg-muted/60"
+                className="mt-3 flex items-center gap-2 rounded-xl border bg-card px-4 py-3 text-sm font-medium text-sky-600 transition hover:bg-muted/60"
               >
                 <Navigation size={16} />
                 於 Google 地圖查看車站位置
