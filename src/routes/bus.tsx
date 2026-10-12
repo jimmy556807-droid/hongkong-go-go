@@ -438,7 +438,7 @@ function BusPage() {
               onClick={() => setActiveCo("NLB")}
               className={`rounded-lg px-2 py-2 text-sm font-semibold transition ${activeCo === "NLB" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}
             >
-              大嶼山巴士
+              嶼巴
             </button>
             <button
               role="tab"
@@ -449,6 +449,35 @@ function BusPage() {
               專綫小巴
             </button>
           </div>
+          {activeCo === "NLB" && !input && (
+            <div className="mt-3 rounded-2xl border bg-card p-3 shadow-sm">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-sm font-semibold">熱門嶼巴路線</p>
+                <span className="text-xs text-muted-foreground">官方路線資料</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {(routes.data ?? [])
+                  .filter((r) => r.co === "NLB")
+                  .filter((r, i, all) => all.findIndex((x) => x.route === r.route) === i)
+                  .sort((a, b) => {
+                    const popular = ["11", "23", "37M", "38", "B4", "B6", "1R"];
+                    return (popular.indexOf(a.route) < 0 ? 99 : popular.indexOf(a.route)) - (popular.indexOf(b.route) < 0 ? 99 : popular.indexOf(b.route));
+                  })
+                  .slice(0, 8)
+                  .map((r) => (
+                    <button
+                      key={r.route}
+                      type="button"
+                      onClick={() => pick(r.route, r.dir, "NLB")}
+                      className="rounded-xl border px-3 py-2 text-left transition hover:bg-muted/60"
+                    >
+                      <b className="text-primary">{r.route}</b>
+                      <span className="mt-0.5 block truncate text-xs text-muted-foreground">往 {r.dest}</span>
+                    </button>
+                  ))}
+              </div>
+            </div>
+          )}
           {!pos && (
             <p className="mt-2 text-sm text-muted-foreground">
               正在取得你嘅位置…如未能定位，請用上面搜尋路線。
