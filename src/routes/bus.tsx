@@ -115,6 +115,46 @@ function BusFareBox({
     </div>
   );
 }
+function NlbFareBox({ stops, fromSeq }: { stops: Array<{ seq: number; name: string; fare?: number | null }>; fromSeq: number | null }) {
+  const fares = stops.map((s) => s.fare).filter((f): f is number => f != null);
+  if (!fares.length) return null;
+  const full = Math.max(...fares);
+  const fromStop = fromSeq != null ? stops.find((s) => s.seq === fromSeq) : null;
+  const fromFare = fromStop?.fare ?? null;
+  const hasSectional = fares.some((f) => f !== full);
+  return (
+    <div className="mx-5 mt-3 rounded-2xl border bg-card p-4 text-sm">
+      <p className="flex items-center gap-2 font-semibold">
+        <Wallet size={16} className="text-primary" />
+        車資詳情
+      </p>
+      <div className="mt-2 grid grid-cols-2 gap-1.5 text-xs">
+        <div className="flex justify-between rounded-lg bg-muted/60 px-2.5 py-1.5">
+          <span className="text-muted-foreground">全程成人</span>
+          <b>${full.toFixed(1)}</b>
+        </div>
+        <div className="flex justify-between rounded-lg bg-muted/60 px-2.5 py-1.5">
+          <span className="text-muted-foreground">{fromFare != null ? `${fromStop?.name ?? "此站"}上車` : "分段收費"}</span>
+          <b>{fromFare != null ? `${fromFare.toFixed(1)}` : hasSectional ? "有" : "無"}</b>
+        </div>
+        {fromFare != null && (
+          <div className="flex justify-between rounded-lg bg-muted/60 px-2.5 py-1.5">
+            <span className="text-muted-foreground">小童 / 長者（約半價）</span>
+            <b>${(fromFare / 2).toFixed(1)}</b>
+          </div>
+        )}
+        <div className="flex justify-between rounded-lg bg-muted/60 px-2.5 py-1.5">
+          <span className="text-muted-foreground">$2 優惠（65 歲以上）</span>
+          <b>{(fromFare ?? full) > 2 ? "$2.0" : `${(fromFare ?? full).toFixed(1)}`}</b>
+        </div>
+      </div>
+      <p className="mt-1.5 text-[11px] text-muted-foreground">
+        撳「起點」可查分段車資；小童 / 長者車資為估算，以車上公布為準。
+      </p>
+    </div>
+  );
+}
+
 import { PageHeader, Countdown, useNow, useCurrentLocation } from "@/components/BottomNav";
 
 export const Route = createFileRoute("/bus")({
@@ -265,7 +305,7 @@ function BusPage() {
   const [dir, setDir] = useState<"outbound" | "inbound">("outbound");
   const [from, setFrom] = useState<number | null>(null);
   const [to, setTo] = useState<number | null>(null);
-  const [stop, setStop] = useState<{ id: string; name: string; co: "KMB" | "CTB" } | null>(null);
+  const [stop, setStop] = useState<{ id: string; name: string; co: "KMB" | "CTB" | "NLB"; lat?: number | null; lng?: number | null; fare?: number | null } | null>(null);
   const [gmb, setGmb] = useState<{ id: string; dest?: string } | null>(null);
   const { position: pos, status: locationStatus } = useCurrentLocation();
   const now = useNow();
@@ -682,6 +722,9 @@ function BusPage() {
           name={stops.find((s) => s.seq === from)?.name}
         />
       )}
+      {route && q.data?.dest && co === "NLB" && (
+        <NlbFareBox stops={stops} fromSeq={from} />
+      )}
       {q.isLoading && <p className="mx-5 mt-6 text-muted-foreground">載入中…</p>}
       {q.isError && <p className="mx-5 mt-6 text-destructive">無法載入，請檢查路線</p>}
       {q.data && stops.length === 0 && (
@@ -697,13 +740,16 @@ function BusPage() {
               />
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => co !== "NLB" && setStop({ id: s.id, name: s.name, co })}
+                  onClick={() => setStop({ id: s.id, name: s.name, co, lat: s.lat ?? null, lng: s.lng ?? null, fare: s.fare ?? null })}
                   className="text-left font-medium underline-offset-2 hover:underline"
                 >
                   {s.name}
                 </button>
                 {route && co !== "NLB" && (
                   <BusStopFare route={route} co={co} dir={dir} idx={stops.indexOf(s)} />
+                )}
+                {route && co === "NLB" && s.fare != null && (
+                  <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">${s.fare.toFixed(1)}</span>
                 )}
               </div>
               <div className="flex items-center gap-3 text-sm">
@@ -887,7 +933,7 @@ function StopSheet({
   onClose,
   onPick,
 }: {
-  stop: { id: string; name: string };
+  stop: { id: string; name: string; lat?: number | null; lng?: number | null; fare?: number | null };
   co: "KMB" | "CTB" | "NLB";
   route: string | null;
   onClose: () => void;
@@ -895,13 +941,17 @@ function StopSheet({
 }) {
   const fn = useServerFn(getStopEta);
   const now = useNow();
-  const canEta = co === "KMB" || !!route;
+  const canEta = co === "KMB" || (co === "CTB" && !!route);
   const q = useQuery({
     queryKey: ["stopEta", co, stop.id, route],
     queryFn: () => fn({ data: { stop: stop.id, co, route: route ?? undefined } }),
     refetchInterval: 30000,
     enabled: canEta,
   });
+  const hasMap = stop.lat != null && stop.lng != null;
+  const mapUrl = hasMap
+    ? `https://www.google.com/maps?q=${stop.lat},${stop.lng}`
+    : null;
   return (
     <div className="fixed inset-0 z-[60] flex items-end bg-foreground/40" onClick={onClose}>
       <div
@@ -919,32 +969,89 @@ function StopSheet({
         </div>
         <p className="text-xs text-muted-foreground">
           站點編號 {stop.id.slice(0, 8)}… ·{" "}
-          {co === "KMB" ? "所有經過路線" : route ? `城巴 ${route} 到站` : "城巴車站"}
+          {co === "KMB"
+            ? "所有經過路線"
+            : co === "CTB"
+              ? route
+                ? `城巴 ${route} 到站`
+                : "城巴車站"
+              : "嶼巴車站"}
         </p>
-        {!canEta && (
+
+        {co === "NLB" && (
+          <>
+            {stop.fare != null && (
+              <div className="mt-3 rounded-2xl border bg-card p-4 text-sm">
+                <p className="flex items-center gap-2 font-semibold">
+                  <Wallet size={16} className="text-primary" />
+                  此站上車車資
+                </p>
+                <div className="mt-2 grid grid-cols-2 gap-1.5 text-xs">
+                  <div className="flex justify-between rounded-lg bg-muted/60 px-2.5 py-1.5">
+                    <span className="text-muted-foreground">成人</span>
+                    <b>${stop.fare.toFixed(1)}</b>
+                  </div>
+                  <div className="flex justify-between rounded-lg bg-muted/60 px-2.5 py-1.5">
+                    <span className="text-muted-foreground">小童 / 長者（約半價）</span>
+                    <b>${(stop.fare / 2).toFixed(1)}</b>
+                  </div>
+                  <div className="flex justify-between rounded-lg bg-muted/60 px-2.5 py-1.5">
+                    <span className="text-muted-foreground">$2 優惠（65 歲以上）</span>
+                    <b>{stop.fare > 2 ? "$2.0" : `${stop.fare.toFixed(1)}`}</b>
+                  </div>
+                </div>
+                <p className="mt-1.5 text-[11px] text-muted-foreground">
+                  小童 / 長者車資為估算，以車上公布為準。
+                </p>
+              </div>
+            )}
+            {mapUrl && (
+              <a
+                href={mapUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-3 flex items-center gap-2 rounded-xl border bg-card px-4 py-3 text-sm font-medium text-primary transition hover:bg-muted/60"
+              >
+                <Navigation size={16} />
+                於 Google 地圖查看車站位置
+              </a>
+            )}
+            <p className="mt-4 text-sm text-muted-foreground">
+              嶼巴暫未提供以單一車站查詢所有途經路線嘅功能，請用上面搜尋欄揀路線查看到站時間。
+            </p>
+          </>
+        )}
+
+        {co !== "NLB" && !canEta && (
           <p className="mt-4 text-sm text-muted-foreground">
             城巴車站暫未能一次過顯示所有路線班次，請用上面搜尋欄揀路線查看。
           </p>
         )}
-        {canEta && q.isLoading && <p className="mt-4 text-muted-foreground">載入中…</p>}
-        <div className="mt-3 divide-y rounded-2xl border bg-card">
-          {q.data?.map((r) => (
-            <button
-              key={r.route + r.dest}
-              onClick={() => onPick(r.route)}
-              className="flex w-full items-center gap-3 px-4 py-3 text-left"
-            >
-              <b className="w-12 text-primary">{r.route}</b>
-              <span className="flex-1 text-sm">往 {r.dest}</span>
-              <span className="flex gap-2 text-sm">
-                {r.etas.slice(0, 2).map((e, i) => (
-                  <Countdown key={i} at={e} now={now} />
-                ))}
-              </span>
-            </button>
-          ))}
-          {q.data?.length === 0 && <p className="p-4 text-sm text-muted-foreground">暫無班次</p>}
-        </div>
+        {co !== "NLB" && canEta && q.isLoading && (
+          <p className="mt-4 text-muted-foreground">載入中…</p>
+        )}
+        {co !== "NLB" && (
+          <div className="mt-3 divide-y rounded-2xl border bg-card">
+            {q.data?.map((r) => (
+              <button
+                key={r.route + r.dest}
+                onClick={() => onPick(r.route)}
+                className="flex w-full items-center gap-3 px-4 py-3 text-left"
+              >
+                <b className="w-12 text-primary">{r.route}</b>
+                <span className="flex-1 text-sm">往 {r.dest}</span>
+                <span className="flex gap-2 text-sm">
+                  {r.etas.slice(0, 2).map((e, i) => (
+                    <Countdown key={i} at={e} now={now} />
+                  ))}
+                </span>
+              </button>
+            ))}
+            {q.data?.length === 0 && (
+              <p className="p-4 text-sm text-muted-foreground">暫無班次</p>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
