@@ -8,6 +8,7 @@ import { getMtrFare } from "@/lib/fare.functions";
 import { getMtrEstimatedMinutes } from "@/lib/trip.functions";
 import { TRAIN_DIRECTIONS } from "@/lib/mtr-direction-hours";
 import { LrtPanel } from "@/components/LrtPanel";
+import { TramPanel } from "@/components/TramPanel";
 const AIRPORT_EXPRESS_FARES: Record<string, { octopus: number; single: number }> = {
   "HOK-AIR": { octopus: 110, single: 120 },
   "KOW-AIR": { octopus: 100, single: 105 },
@@ -202,7 +203,7 @@ function toHkIso(t: string) {
 }
 
 function MtrPage() {
-  const [mode, setMode] = useState<"mtr" | "lrt">("mtr");
+  const [mode, setMode] = useState<"mtr" | "lrt" | "tram">("mtr");
   const [line, setLine] = useState<Line>(LINES[0]!);
   const [sta, setSta] = useState("CEN");
   const [dest, setDest] = useState("TSW");
@@ -283,21 +284,22 @@ function MtrPage() {
       >
         {(
           [
-            ["mtr", "地鐵"],
-            ["lrt", "輕鐵"],
+            ["mtr", "港鐵重鐵"],
+            ["lrt", "新界輕鐵"],
+            ["tram", "香港電車"],
           ] as const
         ).map(([value, label]) => (
           <button
             key={value}
   onClick={() => {
   setMode(value);
-  if (value === "mtr") locate();
-              const firstLine = LINES.find((candidate) =>
-                value === "lrt"
-                  ? candidate.code.startsWith("LRT")
-                  : !candidate.code.startsWith("LRT"),
-              )!;
-              selectLine(firstLine);
+              if (value === "mtr") locate();
+              if (value !== "tram") {
+                const firstLine = LINES.find((candidate) =>
+                  value === "lrt" ? candidate.code.startsWith("LRT") : !candidate.code.startsWith("LRT"),
+                )!;
+                selectLine(firstLine);
+              }
             }}
             className={`rounded-xl px-2 py-2 text-sm font-semibold transition-colors ${mode === value ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}
             aria-pressed={mode === value}
@@ -306,7 +308,9 @@ function MtrPage() {
           </button>
         ))}
       </div>
-      {mode === "lrt" ? (
+      {mode === "tram" ? (
+        <TramPanel />
+      ) : mode === "lrt" ? (
         <LrtPanel />
       ) : (
         <>

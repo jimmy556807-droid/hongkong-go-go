@@ -1,45 +1,33 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-export type TramStop = { code: string; name: string; nameEn: string; direction: "east" | "west"; coordinates: [number, number] };
-export type TramEta = { dest: string; arriveInMin: number; isArrived: boolean; statusText: string };
+export type TramStop = { code: string; name: string; nameEn: string; direction: "east" | "west"; lat: number; lng: number };
 
-const eastStops = [
-  ["KKT", "堅尼地城", "Kennedy Town", 22.2818, 114.1266], ["WST", "西港城", "Western Market", 22.2867, 114.1495], ["JST", "莊士敦道", "Johnston Road", 22.2774, 114.1719], ["WAC", "灣仔道", "Wanchai Road", 22.2748, 114.1788], ["NPT", "北角", "North Point", 22.2911, 114.2005], ["02W", "柴灣道", "Chai Wan Road", 22.2798, 114.2392], ["SKT", "筲箕灣", "Shau Kei Wan", 22.2787, 114.2238],
-] as const;
-const westStops = [...eastStops].reverse();
-export const TRAM_STOPS: TramStop[] = [...eastStops.map(([code, name, nameEn, lat, lng]) => ({ code, name, nameEn, direction: "east" as const, coordinates: [lat, lng] as [number, number] })), ...westStops.map(([code, name, nameEn, lat, lng]) => ({ code, name, nameEn, direction: "west" as const, coordinates: [lat, lng] as [number, number] }))];
+const east: Array<[string, string, string, number, number]> = [
+  ["SKT", "筲箕灣", "Shau Kei Wan", 22.2814, 114.2263], ["02E", "太古城", "Taikoo Shing", 22.2865, 114.218],
+  ["NPT", "北角", "North Point", 22.291, 114.201], ["KKT", "炮台山", "Fortress Hill", 22.288, 114.193],
+  ["VIC", "維多利亞公園", "Victoria Park", 22.281, 114.191], ["CBY", "銅鑼灣", "Causeway Bay", 22.279, 114.185],
+  ["WCH", "灣仔", "Wan Chai", 22.278, 114.175], ["CEN", "中環", "Central", 22.283, 114.158],
+  ["WST", "西港城", "Western Market", 22.286, 114.15], ["KKTW", "堅尼地城", "Kennedy Town", 22.281, 114.128],
+];
+const west = east.slice().reverse();
+export const TRAM_STOPS: TramStop[] = [...east.map(([code, name, nameEn, lat, lng]) => ({ code, name, nameEn, direction: "east" as const, lat, lng })), ...west.map(([code, name, nameEn, lat, lng]) => ({ code: `${code}W`, name, nameEn, direction: "west" as const, lat, lng }))];
+
+const attr = (xml: string, key: string) => xml.match(new RegExp(`${key}="([^"]*)"`, "i"))?.[1] ?? "";
+const destinationNames: Record<string, string> = { SKT: "筲箕灣", HVY: "跑馬地", KEN: "堅尼地城", WST: "石塘咀", NPT: "北角" };
 
 export const getTramEta = createServerFn({ method: "GET" })
   .inputValidator((d) => z.object({ stopCode: z.string().regex(/^[A-Z0-9]+$/) }).parse(d))
   .handler(async ({ data }) => {
-    const response = await fetch(`https://www.hktramways.com/nextTram/geteat.php?stop_code=${encodeURIComponent(data.stopCode)}`, { headers: { Accept: "application/xml, text/xml" } });
-    if (!response.ok) throw new Error("無法取得電車實時班次");
+    const response = await fetch(`https://www.hktramways.com/nextTram/geteat.php?stop_code=${encodeURIComponent(data.stopCode)}`);
+    if (!response.ok) throw new Error(`電車到站資料請求失敗 (${response.status})`);
     const xml = await response.text();
-    const results: TramEta[] = [];
-    for (const match of xml.matchAll(/<metadata\s+([^>]+?)\s*\/?\s*>/gi)) {
-      const attrs = Object.fromEntries([...match[1].matchAll(/([\w]+)="([^"]*)"/g)].map(([, key, value]) => [key, value]));
-      const minutes = Number(attrs.arrive_in_minute ?? 0);
-      const arrived = attrs.is_arrived === "1";
-      const dest = attrs.tram_dest_tc || "未有目的地資料";
-      results.push({ dest, arriveInMin: minutes, isArrived: arrived, statusText: arrived ? "已到站" : `約 ${minutes} 分鐘` });
-    }
-    return results.slice(0, 3);
+    const rows = [...xml.matchAll(/<metadata\b[^>]*\/?>(?:<\/metadata>)?/gi)].slice(0, 3).map((match) => {
+      const source = match[0];
+      const minutes = Number(attr(source, "arrive_in_minute"));
+      const arrived = attr(source, "is_arrived") === "1";
+      const code = attr(source, "dest_stop_code");
+      return { dest: destinationNames[code] ?? attr(source, "tram_dest_tc") ?? "目的地未提供", arriveInMin: Number.isFinite(minutes) ? minutes : 0, isArrived: arrived, statusText: arrived ? "已到站" : `約 ${Math.max(0, minutes)} 分鐘` };
+    });
+    return rows;
   });
-
-export const getTramStops = createServerFn({ method: "GET" }).handler(() => TRAM_STOPS);
-
-export const TRAM_DESTINATIONS = ["筲箕灣", "跑馬地", "堅尼地城", "石塘咀", "北角", "上環"];
-
-export function getTramDirectionLabel(direction: "east" | "west") {
-  return direction === "east" ? "東行" : "西行";
-}
-
-export function getTramDestinationHint(direction: "east" | "west") {
-  return direction === "east" ? "往跑馬地／筲箕灣" : "往上環／堅尼地城";
-}
-
-export function sortTramStopsByDistance(stops: TramStop[], position?: { lat: number; lng: number }) {
-  if (!position) return stops;
-  return [...stops].sort((a, b) => ((a.coordinates[0] - position.lat) ** 2 + (a.coordinates[1] - position.lng) ** 2) - ((b.coordinates[0] - position.lat) ** 2 + (b.coordinates[1] - position.lng) ** 2));
-}
