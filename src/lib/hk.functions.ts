@@ -96,18 +96,33 @@ const KMB = "https://data.etabus.gov.hk/v1/transport/kmb";
 const CTB = "https://rt.data.gov.hk/v2/transport/citybus";
 const CTB1 = "https://rt.data.gov.hk/v1/transport/citybus-nwfb";
 const NLB = "https://rt.data.gov.hk/v2/transport/nlb";
-type NlbRoute = { route: string; routeId: string; orig: string; dest: string };
+type NlbRoute = { route: string; routeId: string; dir: "outbound" | "inbound"; orig: string; dest: string };
 let nlbRouteCache: { at: number; data: NlbRoute[] } | null = null;
 async function nlbRouteList() {
   if (nlbRouteCache && Date.now() - nlbRouteCache.at < 12 * 3600e3) return nlbRouteCache.data;
   const response = await j(`${NLB}/route.php?action=list`).catch(() => null);
   const source = Array.isArray(response?.routes) ? response.routes : Array.isArray(response?.data) ? response.data : Array.isArray(response) ? response : [];
-  const data = source.map((r: any) => ({
-    route: String(r.routeNo ?? r.route ?? ""),
-    routeId: String(r.routeId ?? r.routeID ?? r.routeNo ?? r.route ?? ""),
-    orig: String(r.routeName_c?.split?.(/\s*>\s*/)?.[0] ?? r.origin_c ?? r.orig ?? ""),
-    dest: String(r.routeName_c?.split?.(/\s*>\s*/)?.slice(1).join(" > ") ?? r.destination_c ?? r.dest ?? ""),
-  })).filter((r: NlbRoute) => r.route && r.routeId);
+  const parsed = source.map((r: any) => {
+    const routeName = String(r.routeName_c ?? r.routeName_tc ?? "");
+    const endpoints = routeName.split(/\s*>\s*/);
+    const rawDir = String(r.dir ?? r.direction ?? r.bound ?? r.routeDirection ?? "").toLowerCase();
+    const dir: NlbRoute["dir"] = /in|return|回程|返/.test(rawDir) ? "inbound" : "outbound";
+    return {
+      route: String(r.routeNo ?? r.route ?? ""),
+      routeId: String(r.routeId ?? r.routeID ?? ""),
+      dir,
+      orig: String(endpoints[0] ?? r.origin_c ?? r.orig ?? ""),
+      dest: String(endpoints.slice(1).join(" > ") || r.destination_c || r.dest || ""),
+      hasDirection: Boolean(rawDir),
+    };
+  }).filter((r: any) => r.route && r.routeId);
+  const data: NlbRoute[] = [];
+  for (const [route, entries] of Map.groupBy(parsed, (r: any) => r.route)) {
+    const ordered = entries.length > 1 && entries.every((r: any) => !r.hasDirection)
+      ? entries.map((r: any, index: number) => ({ ...r, dir: index % 2 === 0 ? "outbound" : "inbound" }))
+      : entries;
+    data.push(...ordered.map(({ hasDirection: _hasDirection, ...r }: any) => r));
+  }
   nlbRouteCache = { at: Date.now(), data };
   return data;
 }
@@ -140,10 +155,10 @@ export const getBus = createServerFn({ method: "GET" })
     const d = data.dir === "outbound" ? "O" : "I";
     if (data.co === "NLB") {
       const routes = await nlbRouteList();
-      const info = routes.find((r) => r.route === route || r.routeId === route);
+      const info = routes.find((r) => r.route === route && r.dir === data.dir) ?? routes.find((r) => r.routeId === route);
       const routeId = info?.routeId ?? route;
       const listed = await j(`${NLB}/stop.php?action=list&routeId=${encodeURIComponent(routeId)}`).catch(() => null);
-      const rawStops = Array.isArray(listed?.data) ? listed.data : Array.isArray(listed) ? listed : [];
+      const rawStops = Array.isArray(listed?.stops) ? listed.stops : Array.isArray(listed) ? listed : [];
       const rows = await inBatches(rawStops, 8, async (s: any) => {
         const stopId = String(s.stopId ?? s.stop_id ?? s.id ?? s.stop ?? "");
         const eta = await j(`${NLB}/stop.php?action=estimatedArrivals&routeId=${encodeURIComponent(routeId)}&stopId=${encodeURIComponent(stopId)}&language=zh`).catch(() => null);
@@ -154,7 +169,7 @@ export const getBus = createServerFn({ method: "GET" })
           lat: Number(s.latitude ?? s.lat) || null, lng: Number(s.longitude ?? s.lng ?? s.long) || null,
           fare: Number(s.fare ?? s.sectionFare) || null,
           etas: items.map((e: any) => e.estimatedArrivalIncDate ?? e.estimatedArrivalTime ?? e.eta ?? e.arrivalTime ?? "").map((value: string) => {
-            const at = new Date(value).getTime();
+            const at = new Date(/^[0-9]{4}-[0-9]{2}-[0-9]{2} /.test(value) ? `${value}+08:00` : value).getTime();
             return Number.isFinite(at) ? new Date(at).toISOString() : "";
           }).filter(Boolean).slice(0, 3),
         };
@@ -218,8 +233,7 @@ export const getBusRoutes = createServerFn({ method: "GET" }).handler(async () =
   out.push({ route: String(r.route), dir: "inbound", orig: String(r.dest_tc), dest: String(r.orig_tc), co: "CTB" });
   }
   for (const r of nl) {
-    out.push({ route: r.route, routeId: r.routeId, dir: "outbound", orig: r.orig, dest: r.dest, co: "NLB" });
-    out.push({ route: r.route, routeId: r.routeId, dir: "inbound", orig: r.dest, dest: r.orig, co: "NLB" });
+    out.push({ route: r.route, routeId: r.routeId, dir: r.dir, orig: r.orig, dest: r.dest, co: "NLB" });
   }
   return out;
 });
