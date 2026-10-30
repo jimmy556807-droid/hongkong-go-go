@@ -549,7 +549,6 @@ function Index() {
           <p className="mt-2 text-sm font-medium">⚠ {w.data.warnings.join("、")}</p>
         )}
       </div>
-      <Planner />
       <FareSaverCard />
       <div className="mx-5 mt-4 grid grid-cols-3 gap-3">
         {tiles.map(({ to, icon: I, label }) => (
