@@ -5157,32 +5157,6 @@ export const searchPlaces = createServerFn({ method: "GET" })
     }
   });
 
-async function readStream(res: Response) {
-  const reader = res.body!.getReader();
-  const dec = new TextDecoder();
-  let buf = "";
-  let out = "";
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buf += dec.decode(value, { stream: true });
-    const lines = buf.split("\n");
-    buf = lines.pop() ?? "";
-    for (const l of lines) {
-      const t = l.trim();
-      if (!t.startsWith("data:")) continue;
-      const p = t.slice(5).trim();
-      if (!p || p === "[DONE]") continue;
-      try {
-        out += JSON.parse(p)?.choices?.[0]?.delta?.content ?? "";
-      } catch {
-        /* partial */
-      }
-    }
-  }
-  return out;
-}
-
 async function liveMtr(line: string, sta: string) {
   try {
     const r = await fetch(
@@ -5486,9 +5460,8 @@ ${corridor || "未命中本地走廊，按已知官方交通網絡審慎規劃�
           method: "POST",
           headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
           body: JSON.stringify({
-            model: "deepseek-flash",
-            stream: true,
-            max_tokens: 800,
+            model: "deepseek-chat",
+            max_tokens: 2500,
             temperature: 0.2,
             response_format: { type: "json_object" },
             messages: [
@@ -5515,10 +5488,14 @@ ${corridor || "未命中本地走廊，按已知官方交通網絡審慎規劃�
         };
       }
 
-      const text = await readStream(res);
+      const responseBody = await res.json().catch(() => null);
+      const text = String(responseBody?.choices?.[0]?.message?.content ?? "");
+      const cleanedText = text.replace(/```(?:json)?/gi, "").replace(/```/g, "").trim();
+      const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
+      const rawJson = jsonMatch ? jsonMatch[0] : cleanedText;
       let parsed: any;
       try {
-        parsed = JSON.parse(text.replace(/^```json\s*|```$/g, "").trim());
+        parsed = JSON.parse(rawJson);
       } catch {
         return { plans: [], error: "建議格式有誤，請再試一次。" };
       }
