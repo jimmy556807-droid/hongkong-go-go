@@ -132,7 +132,45 @@ async function nlbRouteList() {
   nlbRouteCache = { at: Date.now(), data };
   return data;
 }
-const ctbStopNames = new Map<string, string>();
+type StopDetails = { name: string; lat: number | null; lng: number | null };
+
+const kmbStopCache = new Map<string, StopDetails>();
+const kmbStopRequests = new Map<string, Promise<StopDetails>>();
+const ctbStopCache = new Map<string, StopDetails>();
+const ctbStopRequests = new Map<string, Promise<StopDetails>>();
+const coordinate = (value: unknown) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed !== 0 ? parsed : null;
+};
+
+async function getStopDetails(
+  id: string,
+  base: string,
+  cache: Map<string, StopDetails>,
+  requests: Map<string, Promise<StopDetails>>,
+): Promise<StopDetails> {
+  const cached = cache.get(id);
+  if (cached) return cached;
+  const pending = requests.get(id);
+  if (pending) return pending;
+
+  const request = j(`${base}/stop/${encodeURIComponent(id)}`)
+    .then((x) => {
+      const data = x?.data ?? x;
+      const details = {
+        name: String(data?.name_tc ?? id),
+        lat: coordinate(data?.lat),
+        lng: coordinate(data?.long),
+      };
+      cache.set(id, details);
+      return details;
+    })
+    .catch(() => ({ name: id, lat: null, lng: null }))
+    .finally(() => requests.delete(id));
+  requests.set(id, request);
+  return request;
+}
+
 let ctbRouteCache: { at: number; data: any[] } | null = null;
 async function ctbRouteList() {
   if (ctbRouteCache && Date.now() - ctbRouteCache.at < 12 * 3600e3) return ctbRouteCache.data;
@@ -140,12 +178,8 @@ async function ctbRouteList() {
   ctbRouteCache = { at: Date.now(), data: x?.data ?? [] };
   return ctbRouteCache.data;
 }
-async function ctbStopName(id: string) {
-  const hit = ctbStopNames.get(id);
-  if (hit) return hit;
-  const n = await j(`${CTB1}/stop/${id}`).then((x) => String(x?.data?.name_tc ?? id)).catch(() => id);
-  if (n !== id) ctbStopNames.set(id, n);
-  return n;
+async function ctbStopDetails(id: string) {
+  return getStopDetails(id, CTB1, ctbStopCache, ctbStopRequests);
 }
 async function inBatches<T, U>(items: T[], size: number, f: (t: T) => Promise<U>) {
   const out: U[] = [];
@@ -194,13 +228,20 @@ export const getBus = createServerFn({ method: "GET" })
       const dest = info ? String(d === "O" ? info.dest_tc : info.orig_tc) : "";
       if (!stops.length) return { route, co: "CTB", orig, dest: "", stops: [] };
       const rows = await inBatches(stops, 10, async (s) => {
-        const [n, e] = await Promise.all([
-          ctbStopName(String(s.stop)),
+        const [details, e] = await Promise.all([
+          ctbStopDetails(String(s.stop)),
           j(`${CTB1}/eta/CTB/${s.stop}/${route}`).then((x) => (x?.data ?? []) as any[]).catch(() => [] as any[]),
         ]);
         return {
-          seq: Number(s.seq), id: String(s.stop), name: n,
-          etas: e.filter((x) => x.dir === d && x.eta).map((x) => String(x.eta)).slice(0, 3),
+          seq: Number(s.seq),
+          id: String(s.stop),
+          name: details.name,
+          lat: details.lat,
+          lng: details.lng,
+          etas: e
+            .filter((x) => x.dir === d && x.eta)
+            .map((x) => String(x.eta))
+            .slice(0, 3),
         };
       });
       return { route, co: "CTB", orig: orig || rows[0]!.name, dest: dest || rows[rows.length - 1]!.name, stops: rows };
@@ -208,16 +249,23 @@ export const getBus = createServerFn({ method: "GET" })
     const [rs, eta] = await Promise.all([j(`${KMB}/route-stop/${route}/${data.dir}/1`), j(`${KMB}/route-eta/${route}/1`)]);
     const stops: any[] = rs?.data ?? [];
     if (!stops.length) return { route, co: "KMB", dest: "", stops: [] };
-    const names = await Promise.all(
-      stops.map((s) => j(`${KMB}/stop/${s.stop}`).then((x) => String(x?.data?.name_tc ?? s.stop)).catch(() => String(s.stop))),
+    const details = await inBatches(stops, 10, (s) =>
+      getStopDetails(String(s.stop), KMB, kmbStopCache, kmbStopRequests),
     );
     const etas: any[] = (eta?.data ?? []).filter((e: any) => e.dir === d);
     return {
       route, co: "KMB",
-      dest: String(names[names.length - 1] ?? ""),
+      dest: String(details[details.length - 1]?.name ?? ""),
       stops: stops.map((s, i) => ({
-        seq: Number(s.seq), id: String(s.stop), name: names[i]!,
-        etas: etas.filter((e) => Number(e.seq) === Number(s.seq) && e.eta).map((e) => String(e.eta)).slice(0, 3),
+        seq: Number(s.seq),
+        id: String(s.stop),
+        name: details[i]!.name,
+        lat: details[i]!.lat,
+        lng: details[i]!.lng,
+        etas: etas
+          .filter((e) => Number(e.seq) === Number(s.seq) && e.eta)
+          .map((e) => String(e.eta))
+          .slice(0, 3),
       })),
     };
   });

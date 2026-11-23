@@ -336,6 +336,14 @@ function BusPage() {
     enabled: !!route,
   });
 
+  useEffect(() => {
+    if (route && dir === "inbound" && q.isSuccess && q.data.stops.length === 0) {
+      setDir("outbound");
+      setFrom(null);
+      setTo(null);
+    }
+  }, [route, dir, q.data, q.isSuccess]);
+
   const matches = useMemo(() => {
     const t = input.trim().toUpperCase();
     if (!t) return [];
@@ -654,6 +662,7 @@ function BusPage() {
         <button
           onClick={() => {
             setRoute(null);
+            setDir("outbound");
             setFrom(null);
             setTo(null);
           }}
@@ -800,6 +809,7 @@ function BusPage() {
             setStop(null);
             setCo(stop.co);
             setRoute(r);
+            setDir("outbound");
             setFrom(null);
             setTo(null);
           }}
