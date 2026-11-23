@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeftRight, Search, Clock, MapPin, Navigation, X } from "lucide-react";
+import { ArrowLeftRight, Search, Clock, MapPin, X } from "lucide-react";
 import {
   getBus,
   getBusRoutes,
@@ -15,6 +15,7 @@ import {
 } from "@/lib/hk.functions";
 import { getBusFare } from "@/lib/fare.functions";
 import { Wallet } from "lucide-react";
+import { MiniMapNavigation } from "@/components/MiniMapNavigation";
 
 function BusStopFare({
   route,
@@ -566,9 +567,9 @@ function BusPage() {
                         className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-muted/60"
                       >
                         <span
-                          className={`flex size-9 shrink-0 items-center justify-center rounded-xl text-xs font-bold ${r.co === "KMB" ? "bg-destructive/15 text-destructive" : r.co === "NLB" ? "bg-sky-100 text-sky-700" : "bg-accent text-accent-foreground"}`}
+                          className={`flex size-9 shrink-0 items-center justify-center rounded-xl text-xs font-bold ${r.co === "KMB" ? "bg-destructive/15 text-destructive" : "bg-accent text-accent-foreground"}`}
                         >
-                          {r.co === "KMB" ? "九巴" : r.co === "NLB" ? "嶼巴" : "城巴"}
+                          {r.co === "KMB" ? "九巴" : "城巴"}
                         </span>
                         <span className="min-w-0 flex-1 text-sm">
                           <b className="mr-2 text-base">{r.route}</b>往 {r.dest}
@@ -744,15 +745,22 @@ function BusPage() {
               />
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setStop({ id: s.id, name: s.name, co, lat: s.lat ?? null, lng: s.lng ?? null, fare: s.fare ?? null })}
+                  onClick={() => setStop({
+                    id: s.id,
+                    name: s.name,
+                    co,
+                    lat: "lat" in s ? s.lat ?? null : null,
+                    lng: "lng" in s ? s.lng ?? null : null,
+                    fare: "fare" in s ? s.fare ?? null : null,
+                  })}
                   className="text-left font-medium underline-offset-2 hover:underline"
                 >
                   {s.name}
                 </button>
                 {route && co !== "NLB" && (
-                  <BusStopFare route={route} co={co} dir={dir} idx={stops.indexOf(s)} />
+                  <BusStopFare route={route} co={co} dir={dir} idx={stops.findIndex((stop) => stop.seq === s.seq)} />
                 )}
-                {route && co === "NLB" && s.fare != null && (
+                {route && co === "NLB" && "fare" in s && s.fare != null && (
                   <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-700">${s.fare.toFixed(1)}</span>
                 )}
               </div>
@@ -946,16 +954,13 @@ function StopSheet({
   const fn = useServerFn(getStopEta);
   const now = useNow();
   const canEta = co === "KMB" || (co === "CTB" && !!route);
+  const { position } = useCurrentLocation();
   const q = useQuery({
     queryKey: ["stopEta", co, stop.id, route],
     queryFn: () => fn({ data: { stop: stop.id, co, route: route ?? undefined } }),
     refetchInterval: 30000,
     enabled: canEta,
   });
-  const hasMap = stop.lat != null && stop.lng != null;
-  const mapUrl = hasMap
-    ? `https://www.google.com/maps?q=${stop.lat},${stop.lng}`
-    : null;
   return (
     <div className="fixed inset-0 z-[60] flex items-end bg-foreground/40" onClick={onClose}>
       <div
@@ -982,7 +987,17 @@ function StopSheet({
               : "嶼巴車站"}
         </p>
 
+        <div className="mt-3">
+          <MiniMapNavigation
+            name={stop.name}
+            lat={stop.lat}
+            lng={stop.lng}
+            position={position}
+          />
+        </div>
+
         {co === "NLB" && (
+
           <>
             {stop.fare != null && (
               <div className="mt-3 rounded-2xl border bg-card p-4 text-sm">
@@ -1009,17 +1024,7 @@ function StopSheet({
                 </p>
               </div>
             )}
-            {mapUrl && (
-              <a
-                href={mapUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-3 flex items-center gap-2 rounded-xl border bg-card px-4 py-3 text-sm font-medium text-sky-600 transition hover:bg-muted/60"
-              >
-                <Navigation size={16} />
-                於 Google 地圖查看車站位置
-              </a>
-            )}
+
             <p className="mt-4 text-sm text-muted-foreground">
               嶼巴暫未提供以單一車站查詢所有途經路線嘅功能，請用上面搜尋欄揀路線查看到站時間。
             </p>
