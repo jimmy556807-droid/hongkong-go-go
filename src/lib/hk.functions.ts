@@ -117,7 +117,13 @@ async function nlbRouteList() {
     };
   }).filter((r: any) => r.route && r.routeId);
   const data: NlbRoute[] = [];
-  for (const [route, entries] of Map.groupBy(parsed, (r: any) => r.route)) {
+  const entriesByRoute = new Map<string, typeof parsed>();
+  for (const entry of parsed) {
+    const entries = entriesByRoute.get(entry.route) ?? [];
+    entries.push(entry);
+    entriesByRoute.set(entry.route, entries);
+  }
+  for (const [route, entries] of entriesByRoute) {
     const ordered = entries.length > 1 && entries.every((r: any) => !r.hasDirection)
       ? entries.map((r: any, index: number) => ({ ...r, dir: index % 2 === 0 ? "outbound" : "inbound" }))
       : entries;

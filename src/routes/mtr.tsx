@@ -8,6 +8,8 @@ import { getMtrFare } from "@/lib/fare.functions";
 import { getMtrEstimatedMinutes } from "@/lib/trip.functions";
 import { TRAIN_DIRECTIONS } from "@/lib/mtr-direction-hours";
 import { LrtPanel } from "@/components/LrtPanel";
+import { FareSaverTip } from "@/components/FareSaverTip";
+import { fareSaversForStation } from "@/lib/fare-saver";
 const AIRPORT_EXPRESS_FARES: Record<string, { octopus: number; single: number }> = {
   "HOK-AIR": { octopus: 110, single: 120 },
   "KOW-AIR": { octopus: 100, single: 105 },
@@ -19,6 +21,7 @@ const AIRPORT_EXPRESS_FARES: Record<string, { octopus: number; single: number }>
 
 function FareBox({
   fare,
+  fareSaverAvailable,
 }: {
   fare: {
     octAdult: number;
@@ -28,6 +31,7 @@ function FareBox({
     single: number;
     singleChild: number;
   };
+  fareSaverAvailable: boolean;
 }) {
   return (
     <div className="mt-3 border-t pt-3">
@@ -36,9 +40,23 @@ function FareBox({
         車資詳情
       </p>
       <div className="mt-2 grid grid-cols-2 gap-1.5 text-xs">
-        <div className="flex justify-between rounded-lg bg-muted/60 px-2.5 py-1.5">
+        <div className="flex items-start justify-between gap-2 rounded-lg bg-muted/60 px-2.5 py-1.5">
           <span className="text-muted-foreground">八達通成人</span>
-          <b>${fare.octAdult.toFixed(1)}</b>
+          {fareSaverAvailable && fare.octAdult > 0 ? (
+            <span className="text-right">
+              <span className="mr-1 text-muted-foreground line-through">
+                ${fare.octAdult.toFixed(1)}
+              </span>
+              <b className="text-emerald-700 dark:text-emerald-300">
+                ${Math.max(0, fare.octAdult - 2).toFixed(1)}
+              </b>
+              <span className="block text-[10px] font-medium text-emerald-700 dark:text-emerald-300">
+                拍卡後 · 慳 ${Math.min(2, fare.octAdult).toFixed(1)}
+              </span>
+            </span>
+          ) : (
+            <b>${fare.octAdult.toFixed(1)}</b>
+          )}
         </div>
         <div className="flex justify-between rounded-lg bg-muted/60 px-2.5 py-1.5">
           <span className="text-muted-foreground">單程票成人</span>
@@ -232,6 +250,7 @@ function MtrPage() {
   const fareFn = useServerFn(getMtrFare);
 
   const route = useMemo(() => planRoute(sta, dest), [sta, dest]);
+  const originFareSavers = useMemo(() => fareSaversForStation(STATIONS[sta]), [sta]);
   const boardLine = route?.segs[0]?.line ?? line;
   const isAirportExpressRoute = route?.segs.some((segment) => segment.line.code === "AEL") ?? false;
   const fareQuery = useQuery({
@@ -485,6 +504,13 @@ function MtrPage() {
                         })} 到達
                       </p>
                     )}
+                    {!isAirportExpressRoute && originFareSavers.length > 0 && (
+                      <FareSaverTip
+                        stationName={STATIONS[sta] ?? sta}
+                        savers={originFareSavers}
+                        position={position}
+                      />
+                    )}
                     {isAirportExpressRoute ? (
                       route.segs
                         .filter((segment) => segment.line.code === "AEL")
@@ -496,7 +522,7 @@ function MtrPage() {
                           />
                         ))
                     ) : fareQuery.data ? (
-                      <FareBox fare={fareQuery.data} />
+                      <FareBox fare={fareQuery.data} fareSaverAvailable={originFareSavers.length > 0} />
                     ) : null}
                   </>
                 )}

@@ -54,3 +54,12 @@ export function distKm(a: { lat: number; lng: number }, b: { lat: number; lng: n
 export function nearestFareSaver(p: { lat: number; lng: number }) {
   return FARE_SAVERS.map((f) => ({ ...f, km: distKm(p, f) })).sort((a, b) => a.km - b.km)[0]!;
 }
+
+export function fareSaversForStation(stationName: string | null | undefined) {
+  const normalizedName = stationName?.trim();
+  if (!normalizedName) return [];
+
+  return FARE_SAVERS.filter((saver) =>
+    saver.stations.split(/[／/]/).some((station) => station.trim() === normalizedName),
+  );
+}

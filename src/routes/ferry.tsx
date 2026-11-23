@@ -4,6 +4,7 @@ import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { Ship, Search, Clock, MapPin, Wallet } from "lucide-react";
 import { PageHeader } from "@/components/BottomNav";
 import { FerryTimetableDialog } from "@/components/FerryTimetableDialog";
+import { MiniMapNavigation } from "@/components/MiniMapNavigation";
 import { getFerryRoutes } from "@/lib/ferry.functions";
 
 const ferryQuery = queryOptions({ queryKey: ["ferry-routes"], queryFn: () => getFerryRoutes(), staleTime: 3600_000 });
@@ -35,6 +36,7 @@ function FerryPage() {
   const [q, setQ] = useState("");
   const [tab, setTab] = useState("ALL");
   const [open, setOpen] = useState<string | null>(null);
+  const [mapStop, setMapStop] = useState<string | null>(null);
   const list = data.filter(
     (r) => (tab === "ALL" || r.district === tab) && (!q || (r.name + r.stops.map((s) => s.name).join("")).includes(q)),
   );
@@ -95,13 +97,39 @@ function FerryPage() {
                 <div>
                   <p className="mb-1 font-semibold">停靠碼頭</p>
                   <ol className="space-y-1">
-                    {r.stops.map((s) => (
-                      <li key={s.seq}>
-                        <a href={`https://www.google.com/maps/search/?api=1&query=${s.lat},${s.lng}`} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-muted-foreground hover:text-foreground">
-                          <MapPin size={14} className="text-primary" />{s.seq}. {s.name}
-                        </a>
-                      </li>
-                    ))}
+                    {r.stops.map((s) => {
+                      const stopKey = `${r.key}:${s.seq}`;
+                      const hasCoordinates = Number.isFinite(s.lat) && Number.isFinite(s.lng);
+                      const mapId = `ferry-map-${r.routeId}-${r.routeSeq}-${s.seq}`;
+                      return (
+                        <li key={s.seq} className="rounded-xl border bg-background/50 px-3 py-2.5">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="flex items-center gap-2 text-sm font-medium">
+                              <MapPin size={14} className="shrink-0 text-primary" />{s.seq}. {s.name}
+                            </span>
+                            <button
+                              type="button"
+                              aria-expanded={mapStop === stopKey}
+                              aria-controls={mapStop === stopKey ? mapId : undefined}
+                              onClick={() => setMapStop(mapStop === stopKey ? null : stopKey)}
+                              className="rounded-full border bg-card px-3 py-1.5 text-xs font-semibold text-primary transition hover:bg-primary/5"
+                            >
+                              {mapStop === stopKey ? "收起地圖" : "地圖與導航"}
+                            </button>
+                          </div>
+                          {mapStop === stopKey && (
+                            <div id={mapId} className="mt-3 border-t pt-3">
+                              <MiniMapNavigation
+                                name={s.name}
+                                lat={hasCoordinates ? s.lat : null}
+                                lng={hasCoordinates ? s.lng : null}
+                                className="pt-1"
+                              />
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
                   </ol>
                 </div>
                 {r.link && <FerryTimetableDialog link={r.link} title={`${r.from} ${r.bidirectional ? "⇄" : "→"} ${r.to}`} />}
