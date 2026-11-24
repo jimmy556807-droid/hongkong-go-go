@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeftRight, Search, Clock, MapPin, X } from "lucide-react";
+import { ArrowLeftRight, Search, Clock, MapPin, X, Bus } from "lucide-react";
 import {
   getBus,
   getBusRoutes,
@@ -174,6 +174,83 @@ export const Route = createFileRoute("/bus")({
 });
 
 const MIN_PER_STOP = 2.2;
+
+type BusEtaStop = { seq: number; etas: string[] };
+type BusTrackerPosition = {
+  slot: number;
+  segmentIndex: number;
+  nextArrivalAt: number;
+  observedAt: number;
+};
+
+const BUS_TRACKER_MAX_LEG_MINUTES = 8;
+const BUS_TRACKER_STALE_MS = 45_000;
+
+function etaMinutes(eta: string, now: number) {
+  const arrivalAt = new Date(eta).getTime();
+  return Number.isFinite(arrivalAt) ? (arrivalAt - now) / 60000 : null;
+}
+
+function inferTerminalWaitMinutes(stops: BusEtaStop[], now: number) {
+  const origin = stops[0];
+  if (!origin || origin.etas.length < 2) return null;
+
+  const arrivalMinutes = origin.etas
+    .map((eta) => etaMinutes(eta, now))
+    .filter((minutes): minutes is number => minutes != null && minutes > 0)
+    .sort((a, b) => a - b);
+  if (arrivalMinutes.length < 2) return null;
+
+  const headways = arrivalMinutes
+    .slice(1)
+    .map((minutes, index) => minutes - arrivalMinutes[index]!)
+    .filter((minutes) => minutes > 1);
+  if (!headways.length) return null;
+
+  const regularHeadway = [...headways].sort((a, b) => a - b)[Math.floor(headways.length / 2)]!;
+  return arrivalMinutes[0]! > regularHeadway ? Math.ceil(arrivalMinutes[0]!) : null;
+}
+
+function inferBusPositions(stops: BusEtaStop[], now: number): BusTrackerPosition[] {
+  const positions: BusTrackerPosition[] = [];
+
+  for (let segmentIndex = 0; segmentIndex < stops.length - 1; segmentIndex += 1) {
+    const current = stops[segmentIndex]!;
+    const next = stops[segmentIndex + 1]!;
+    const slots = Math.max(current.etas.length, next.etas.length);
+
+    for (let slot = 0; slot < slots; slot += 1) {
+      const currentEta = current.etas[slot];
+      const nextEta = next.etas[slot];
+      if (!nextEta) continue;
+
+      const currentMinutes = currentEta ? etaMinutes(currentEta, now) : null;
+      const nextMinutes = etaMinutes(nextEta, now);
+      if (nextMinutes == null) continue;
+
+      const hasJustLeft =
+        currentMinutes != null &&
+        currentMinutes >= -1 &&
+        currentMinutes <= 1 &&
+        nextMinutes > currentMinutes &&
+        nextMinutes <= BUS_TRACKER_MAX_LEG_MINUTES &&
+        nextMinutes - currentMinutes >= 1;
+      const isNearNextStop =
+        current.etas.length === 0 && slot === 0 && nextMinutes >= 0 && nextMinutes <= 2;
+
+      if (hasJustLeft || isNearNextStop) {
+        positions.push({
+          slot,
+          segmentIndex,
+          nextArrivalAt: new Date(nextEta).getTime(),
+          observedAt: now,
+        });
+      }
+    }
+  }
+
+  return positions;
+}
 
 function GmbPanel({ searchQuery = "" }: { searchQuery?: string }) {
   const routesFn = useServerFn(getGmbRoutes);
@@ -349,7 +426,7 @@ function BusPage() {
     if (!t) return [];
     const score = (route: string, text: string, co?: string) => {
       const R = route.toUpperCase();
-      let s = R === t ? 0 : R.startsWith(t) ? 1 : 2;
+      const s = R === t ? 0 : R.startsWith(t) ? 1 : 2;
       if (s === 2 && !text.toUpperCase().includes(t)) return -1;
       const tabBonus = co && co === activeCo ? 0 : 1;
       const digits = (R.match(/^\d+/)?.[0] ?? R).length;
@@ -380,7 +457,82 @@ function BusPage() {
     setFrom(null);
     setTo(null);
   };
-  const stops = q.data?.stops ?? [];
+  const stops = useMemo(() => q.data?.stops ?? [], [q.data?.stops]);
+  const trackerKey = route ? `${co}:${route}:${dir}` : "";
+  const canInferBusPositions = Boolean(
+    route && q.data?.route === route && q.data.co === co && !q.isFetching,
+  );
+  const [trackerSnapshot, setTrackerSnapshot] = useState<{
+    key: string;
+    positions: BusTrackerPosition[];
+  }>({ key: "", positions: [] });
+  const [activeTrackerTooltip, setActiveTrackerTooltip] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!canInferBusPositions || !trackerKey) return;
+
+    const observedAt = Date.now();
+    const candidates = inferBusPositions(stops, observedAt);
+    setTrackerSnapshot((previous) => {
+      const previousPositions = previous.key === trackerKey ? previous.positions : [];
+      const previousBySlot = new Map(
+        previousPositions.map((position) => [position.slot, position]),
+      );
+      const nextPositions: BusTrackerPosition[] = [];
+      const seenSlots = new Set<number>();
+
+      for (const candidate of candidates) {
+        if (seenSlots.has(candidate.slot)) continue;
+        seenSlots.add(candidate.slot);
+
+        const previousPosition = previousBySlot.get(candidate.slot);
+        if (
+          previousPosition &&
+          candidate.segmentIndex < previousPosition.segmentIndex &&
+          observedAt - previousPosition.observedAt < BUS_TRACKER_STALE_MS
+        ) {
+          nextPositions.push(previousPosition);
+        } else {
+          nextPositions.push(candidate);
+        }
+      }
+
+      for (const previousPosition of previousPositions) {
+        if (
+          !seenSlots.has(previousPosition.slot) &&
+          observedAt - previousPosition.observedAt < BUS_TRACKER_STALE_MS
+        ) {
+          nextPositions.push(previousPosition);
+        }
+      }
+
+      return { key: trackerKey, positions: nextPositions };
+    });
+  }, [canInferBusPositions, q.dataUpdatedAt, route, stops, trackerKey]);
+
+  const trackedBuses = useMemo(
+    () =>
+      trackerSnapshot.key === trackerKey
+        ? trackerSnapshot.positions.filter(
+            (position) => now - position.observedAt < BUS_TRACKER_STALE_MS,
+          )
+        : [],
+    [now, trackerKey, trackerSnapshot],
+  );
+  const terminalWaitMinutes =
+    canInferBusPositions && !trackedBuses.some((bus) => bus.segmentIndex === 0)
+      ? inferTerminalWaitMinutes(stops, now)
+      : null;
+  const busesBySegment = useMemo(() => {
+    const grouped = new Map<number, BusTrackerPosition[]>();
+    for (const bus of trackedBuses) {
+      const segment = grouped.get(bus.segmentIndex) ?? [];
+      segment.push(bus);
+      grouped.set(bus.segmentIndex, segment);
+    }
+    return grouped;
+  }, [trackedBuses]);
+
   const trip =
     from != null && to != null && to > from
       ? (() => {
@@ -745,32 +897,69 @@ function BusPage() {
         <p className="mx-5 mt-6 text-muted-foreground">找不到此路線</p>
       )}
       <ol className="mx-5 mt-4 border-l-2 border-primary/30">
-        {stops.map((s) => {
+        {stops.map((s, index) => {
           const inTrip = from != null && to != null && s.seq >= from && s.seq <= to;
+          const etaIsApproaching = s.etas.some((eta: string) => {
+            const minutes = etaMinutes(eta, now);
+            return minutes != null && minutes >= -1 && minutes <= 1;
+          });
+          const isOriginWaiting = index === 0 && terminalWaitMinutes != null;
+          const segmentBuses = busesBySegment.get(index) ?? [];
+
           return (
-            <li key={s.seq} className="relative pb-4 pl-5">
+            <li key={s.seq} className="relative pb-8 pl-5">
+              {etaIsApproaching && (
+                <span
+                  aria-hidden="true"
+                  className="absolute -left-[2px] top-0 h-full w-0.5 rounded-full bg-primary"
+                />
+              )}
               <span
-                className={`absolute -left-[7px] top-1.5 h-3 w-3 rounded-full border-2 border-primary ${inTrip ? "bg-primary" : "bg-background"}`}
+                aria-hidden="true"
+                className={`absolute -left-[7px] top-1.5 size-3 rounded-full border-2 ${etaIsApproaching ? "border-primary bg-primary ring-4 ring-primary/20" : `border-primary ${inTrip ? "bg-primary" : "bg-background"}`}`}
               />
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
-                  onClick={() => setStop({
-                    id: s.id,
-                    name: s.name,
-                    co,
-                    lat: "lat" in s ? s.lat ?? null : null,
-                    lng: "lng" in s ? s.lng ?? null : null,
-                    fare: "fare" in s ? s.fare ?? null : null,
-                  })}
+                  onClick={() =>
+                    setStop({
+                      id: s.id,
+                      name: s.name,
+                      co,
+                      lat: "lat" in s ? (s.lat ?? null) : null,
+                      lng: "lng" in s ? (s.lng ?? null) : null,
+                      fare: "fare" in s ? (s.fare ?? null) : null,
+                    })
+                  }
                   className="text-left font-medium underline-offset-2 hover:underline"
                 >
                   {s.name}
                 </button>
+                {etaIsApproaching && (
+                  <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
+                    即將抵站
+                  </span>
+                )}
+                {isOriginWaiting && (
+                  <span
+                    title="按起點站後續 ETA 班距推算"
+                    className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground"
+                  >
+                    <Bus size={12} aria-hidden="true" />
+                    總站候發 · 約 {terminalWaitMinutes} 分鐘後
+                  </span>
+                )}
                 {route && co !== "NLB" && (
-                  <BusStopFare route={route} co={co} dir={dir} idx={stops.findIndex((stop) => stop.seq === s.seq)} />
+                  <BusStopFare
+                    route={route}
+                    co={co}
+                    dir={dir}
+                    idx={stops.findIndex((stop) => stop.seq === s.seq)}
+                  />
                 )}
                 {route && co === "NLB" && "fare" in s && s.fare != null && (
-                  <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-700">${s.fare.toFixed(1)}</span>
+                  <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-700">
+                    ${s.fare.toFixed(1)}
+                  </span>
                 )}
               </div>
               <div className="flex items-center gap-3 text-sm">
@@ -794,6 +983,36 @@ function BusPage() {
                   終點
                 </button>
               </div>
+              {segmentBuses.map((bus) => {
+                const nextStopName = stops[bus.segmentIndex + 1]?.name ?? "下一站";
+                const minutesToNextStop = Math.max(1, Math.ceil((bus.nextArrivalAt - now) / 60000));
+                const description = `行駛中，預計 ${minutesToNextStop} 分鐘到達${nextStopName}`;
+                const busKey = `${trackerKey}-${bus.slot}-${bus.segmentIndex}`;
+                const isTooltipOpen = activeTrackerTooltip === busKey;
+
+                return (
+                  <button
+                    key={`${bus.slot}-${bus.segmentIndex}`}
+                    type="button"
+                    title={description}
+                    aria-label={description}
+                    aria-expanded={isTooltipOpen}
+                    aria-describedby={isTooltipOpen ? `bus-tooltip-${busKey}` : undefined}
+                    onClick={() => setActiveTrackerTooltip(isTooltipOpen ? null : busKey)}
+                    className="group absolute -left-[15px] bottom-0 z-10 inline-flex size-7 animate-pulse items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md transition hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring motion-reduce:animate-none"
+                  >
+                    <Bus size={15} aria-hidden="true" />
+                    <span
+                      id={`bus-tooltip-${busKey}`}
+                      role="tooltip"
+                      aria-hidden={!isTooltipOpen}
+                      className={`pointer-events-none absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-foreground px-2.5 py-1.5 text-[11px] font-medium text-background shadow-lg ${isTooltipOpen ? "block" : "hidden group-hover:block group-focus-visible:block"}`}
+                    >
+                      {description}
+                    </span>
+                  </button>
+                );
+              })}
             </li>
           );
         })}
