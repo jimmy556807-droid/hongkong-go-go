@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeftRight, Search, Clock, MapPin, X, Bus } from "lucide-react";
 import {
   getBus,
@@ -252,6 +252,45 @@ function inferBusPositions(stops: BusEtaStop[], now: number): BusTrackerPosition
   return positions;
 }
 
+function distanceMeters(lat1: number, lng1: number, lat2: number, lng2: number) {
+  const radians = (degrees: number) => (degrees * Math.PI) / 180;
+  const latDelta = radians(lat2 - lat1);
+  const lngDelta = radians(lng2 - lng1);
+  const arc =
+    Math.sin(latDelta / 2) ** 2 +
+    Math.cos(radians(lat1)) * Math.cos(radians(lat2)) * Math.sin(lngDelta / 2) ** 2;
+  return 6371000 * 2 * Math.atan2(Math.sqrt(arc), Math.sqrt(1 - arc));
+}
+
+function routeMatchRank(route: string, orig: string, dest: string, term: string) {
+  const normalizedRoute = route.toUpperCase();
+  if (normalizedRoute === term) return 0;
+  if (normalizedRoute.startsWith(term)) return 1;
+  if (dest.toUpperCase().includes(term)) return 2;
+  if (orig.toUpperCase().includes(term)) return 3;
+  return -1;
+}
+
+function compareRouteFamily(a: string, b: string) {
+  const aDigits = a.match(/^\d+/)?.[0] ?? "";
+  const bDigits = b.match(/^\d+/)?.[0] ?? "";
+  const digitLengthOrder = aDigits.length - bDigits.length;
+  if (digitLengthOrder) return digitLengthOrder;
+
+  const numberOrder = Number(aDigits || 0) - Number(bDigits || 0);
+  if (numberOrder) return numberOrder;
+
+  const suffixOrder: Record<string, number> = { "": -1, A: 0, M: 1, K: 2, X: 3, N: 4 };
+  const aSuffix = a.slice(aDigits.length).toUpperCase();
+  const bSuffix = b.slice(bDigits.length).toUpperCase();
+  const suffixOrderDifference = (suffixOrder[aSuffix] ?? 5) - (suffixOrder[bSuffix] ?? 5);
+  return suffixOrderDifference || a.localeCompare(b, "en", { numeric: true });
+}
+
+function nearbyEtaMinutes(eta: string | number, now: number) {
+  return typeof eta === "number" ? eta : etaMinutes(eta, now);
+}
+
 function GmbPanel({ searchQuery = "" }: { searchQuery?: string }) {
   const routesFn = useServerFn(getGmbRoutes);
   const etaFn = useServerFn(getGmbEta);
@@ -406,6 +445,64 @@ function BusPage() {
     enabled: !!pos && !route,
     refetchInterval: 60000,
   });
+  const sortedNearbyRoutes = useMemo(() => {
+    const candidates = (nearby.data ?? [])
+      .filter((item) => item.co === activeCo)
+      .map((item) => {
+        const arrivals = item.etas
+          .map((eta) => etaMinutes(eta, now))
+          .filter((minutes): minutes is number => minutes != null && minutes >= -1);
+        const nextArrival = arrivals.length ? Math.min(...arrivals) : null;
+        const walkMins = Math.ceil(item.dist / 75);
+        const priority = nextArrival == null ? 2 : nextArrival >= walkMins ? 0 : 1;
+        return { ...item, nextArrival, priority };
+      })
+      .sort(
+        (a, b) =>
+          a.priority - b.priority ||
+          (a.priority === 0
+            ? (a.nextArrival ?? Number.POSITIVE_INFINITY) -
+              (b.nextArrival ?? Number.POSITIVE_INFINITY)
+            : a.dist - b.dist) ||
+          a.route.localeCompare(b.route, "en", { numeric: true }),
+      );
+
+    const seenRoutes = new Set<string>();
+    return candidates.filter((item) => {
+      const key = `${item.co}:${item.route}`;
+      if (seenRoutes.has(key)) return false;
+      seenRoutes.add(key);
+      return true;
+    });
+  }, [nearby.data, activeCo, now]);
+  const sortedNearbyGmbRoutes = useMemo(() => {
+    const candidates = (nearbyGmb.data ?? [])
+      .map((item) => {
+        const arrivals = item.etas
+          .map((eta) => nearbyEtaMinutes(eta, now))
+          .filter((minutes): minutes is number => minutes != null && minutes >= -1);
+        const nextArrival = arrivals.length ? Math.min(...arrivals) : null;
+        const walkMins = Math.ceil(item.dist / 75);
+        const priority = nextArrival == null ? 2 : nextArrival >= walkMins ? 0 : 1;
+        return { ...item, nextArrival, priority };
+      })
+      .sort(
+        (a, b) =>
+          a.priority - b.priority ||
+          (a.priority === 0
+            ? (a.nextArrival ?? Number.POSITIVE_INFINITY) -
+              (b.nextArrival ?? Number.POSITIVE_INFINITY)
+            : a.dist - b.dist) ||
+          a.route.localeCompare(b.route, "en", { numeric: true }),
+      );
+
+    const seenRoutes = new Set<string>();
+    return candidates.filter((item) => {
+      if (seenRoutes.has(item.route)) return false;
+      seenRoutes.add(item.route);
+      return true;
+    });
+  }, [nearbyGmb.data, now]);
   const q = useQuery({
     queryKey: ["bus", co, route, dir],
     queryFn: () => fn({ data: { route: route!, dir, co } }),
@@ -422,31 +519,56 @@ function BusPage() {
   }, [route, dir, q.data, q.isSuccess]);
 
   const matches = useMemo(() => {
-    const t = input.trim().toUpperCase();
-    if (!t) return [];
-    const score = (route: string, text: string, co?: string) => {
-      const R = route.toUpperCase();
-      const s = R === t ? 0 : R.startsWith(t) ? 1 : 2;
-      if (s === 2 && !text.toUpperCase().includes(t)) return -1;
-      const tabBonus = co && co === activeCo ? 0 : 1;
-      const digits = (R.match(/^\d+/)?.[0] ?? R).length;
-      return s * 10000 + tabBonus * 1000 + digits * 100 + Math.min(R.length, 99);
-    };
-    const scored = (routes.data ?? [])
-      .map((r) => ({ r, s: score(r.route, `${r.orig} ${r.dest}`, r.co) }))
-      .filter((x) => x.s >= 0)
-      .sort((a, b) => a.s - b.s || a.r.route.localeCompare(b.r.route, "en", { numeric: true }));
-    const perCo = (co: string, n: number) => scored.filter((x) => x.r.co === co).slice(0, n);
-    const busMatches = [...perCo("KMB", 14), ...perCo("CTB", 14), ...perCo("NLB", 14)]
-      .sort((a, b) => a.s - b.s || a.r.route.localeCompare(b.r.route, "en", { numeric: true }))
-      .map((x) => ({ type: "bus" as const, route: x.r }));
+    const term = input.trim().toUpperCase();
+    if (!term) return [];
+
+    const scoredBuses = (routes.data ?? [])
+      .map((route) => ({ route, rank: routeMatchRank(route.route, route.orig, route.dest, term) }))
+      .filter((item) => item.rank >= 0);
+    const busesByCompany = (company: string, count: number) =>
+      scoredBuses
+        .filter((item) => item.route.co === company)
+        .sort((a, b) => a.rank - b.rank || compareRouteFamily(a.route.route, b.route.route))
+        .slice(0, count);
+    const busMatches = [
+      ...busesByCompany("KMB", 14),
+      ...busesByCompany("CTB", 14),
+      ...busesByCompany("NLB", 14),
+    ].map((item) => ({
+      type: "bus" as const,
+      route: item.route,
+      routeName: item.route.route,
+      company: item.route.co,
+      rank: item.rank,
+    }));
     const gmbMatches = (gmbRoutes.data ?? [])
-      .map((r) => ({ r, s: score(r.name, `${r.start} ${r.end}`, "GMB") }))
-      .filter((x) => x.s >= 0)
-      .sort((a, b) => a.s - b.s)
+      .map((route) => ({ route, rank: routeMatchRank(route.name, route.start, route.end, term) }))
+      .filter((item) => item.rank >= 0)
+      .sort((a, b) => a.rank - b.rank || compareRouteFamily(a.route.name, b.route.name))
       .slice(0, 10)
-      .map((x) => ({ type: "gmb" as const, route: x.r }));
-    return activeCo === "GMB" ? [...gmbMatches, ...busMatches] : [...busMatches, ...gmbMatches];
+      .map((item) => ({
+        type: "gmb" as const,
+        route: item.route,
+        routeName: item.route.name,
+        company: "GMB" as const,
+        rank: item.rank,
+      }));
+
+    return [...busMatches, ...gmbMatches]
+      .sort((a, b) => {
+        const rankOrder = a.rank - b.rank;
+        if (rankOrder) return rankOrder;
+
+        if (a.rank <= 1) {
+          const familyOrder = compareRouteFamily(a.routeName, b.routeName);
+          if (familyOrder) return familyOrder;
+          if (a.type !== b.type) return a.type === "bus" ? -1 : 1;
+        }
+
+        const companyOrder = Number(a.company !== activeCo) - Number(b.company !== activeCo);
+        return companyOrder || compareRouteFamily(a.routeName, b.routeName);
+      })
+      .map(({ rank: _rank, routeName: _routeName, company: _company, ...match }) => match);
   }, [input, routes.data, gmbRoutes.data, activeCo]);
 
   const pick = (r: string, d: "outbound" | "inbound", c: "KMB" | "CTB" | "NLB") => {
@@ -458,6 +580,32 @@ function BusPage() {
     setTo(null);
   };
   const stops = useMemo(() => q.data?.stops ?? [], [q.data?.stops]);
+  const nearestStop = useMemo(() => {
+    if (!pos || !stops.length) return null;
+
+    let nearest: (typeof stops)[number] | null = null;
+    let shortestDistance = Number.POSITIVE_INFINITY;
+    for (const candidate of stops) {
+      const lat = "lat" in candidate && typeof candidate.lat === "number" ? candidate.lat : null;
+      const lng = "lng" in candidate && typeof candidate.lng === "number" ? candidate.lng : null;
+      if (lat == null || lng == null) continue;
+
+      const distance = distanceMeters(pos.lat, pos.lng, lat, lng);
+      if (distance < shortestDistance) {
+        nearest = candidate;
+        shortestDistance = distance;
+      }
+    }
+    return nearest;
+  }, [pos, stops]);
+  const nearestStopRef = useRef<HTMLLIElement | null>(null);
+  const nearestStopSeq = nearestStop?.seq;
+
+  useEffect(() => {
+    if (!route || q.data?.route !== route || q.data.co !== co || nearestStopSeq == null) return;
+    nearestStopRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [route, dir, co, q.data?.route, q.data?.co, nearestStopSeq]);
+
   const trackerKey = route ? `${co}:${route}:${dir}` : "";
   const canInferBusPositions = Boolean(
     route && q.data?.route === route && q.data.co === co && !q.isFetching,
@@ -717,10 +865,7 @@ function BusPage() {
               </div>
               <div className="divide-y">
                 {activeCo !== "GMB" &&
-                  (nearby.data ?? [])
-                    .filter((r) => r.co === activeCo)
-                    .sort((a, b) => a.dist - b.dist)
-                    .map((r) => (
+                  sortedNearbyRoutes.map((r) => (
                       <button
                         key={r.co + r.route + r.dir}
                         onClick={() => pick(r.route, r.dir, r.co)}
@@ -763,7 +908,7 @@ function BusPage() {
                       </button>
                     ))}
                 {activeCo === "GMB" &&
-                  nearbyGmb.data?.map((r) => (
+                  sortedNearbyGmbRoutes.map((r) => (
                     <button
                       key={`GMB${r.routeId}${r.dest}`}
                       onClick={() => setGmb({ id: r.routeId, dest: r.dest })}
@@ -905,9 +1050,18 @@ function BusPage() {
           });
           const isOriginWaiting = index === 0 && terminalWaitMinutes != null;
           const segmentBuses = busesBySegment.get(index) ?? [];
+          const isNearestStop = nearestStop?.seq === s.seq;
+          const allTrackedBusesPassed =
+            trackedBuses.length > 0 &&
+            trackedBuses.every((bus) => bus.segmentIndex >= index);
 
           return (
-            <li key={s.seq} className="relative pb-8 pl-5">
+            <li
+              key={s.seq}
+              ref={isNearestStop ? nearestStopRef : undefined}
+              aria-current={isNearestStop ? "location" : undefined}
+              className={`relative scroll-mt-24 pb-8 pl-5 transition-opacity ${allTrackedBusesPassed ? "opacity-50" : ""} ${isNearestStop ? "rounded-xl bg-primary/5 py-3" : ""}`}
+            >
               {etaIsApproaching && (
                 <span
                   aria-hidden="true"
@@ -937,6 +1091,12 @@ function BusPage() {
                 {etaIsApproaching && (
                   <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
                     即將抵站
+                  </span>
+                )}
+                {isNearestStop && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-[11px] font-semibold text-primary-foreground">
+                    <MapPin size={11} aria-hidden="true" />
+                    當前最近上車站
                   </span>
                 )}
                 {isOriginWaiting && (
